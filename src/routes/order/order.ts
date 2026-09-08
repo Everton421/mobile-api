@@ -12,43 +12,30 @@ import { type OrderReceivedType, type OrderType } from '../../models/order/types
 import { SelectSupplier } from '../../models/supplier/select.ts';
 import { SelectProductSector } from '../../models/product-sector/select.ts';
 
-const productOrderSchema = z.object({
+ const productOrderSchema = z.object({
     codigo: z.union([z.number(), z.string()]),
-    preco: z.coerce.number().optional(),
-    quantidade: z.coerce.number(),
-    desconto: z.coerce.number().optional(),
-    total: z.coerce.number(),
-    frete: z.coerce.number().optional(),
+    preco: z.union([z.number(), z.string()]).optional(),
+    quantidade: z.union([z.number(), z.string()]),
+    desconto: z.union([z.number(), z.string()]).optional(),
+    total: z.union([z.number(), z.string()]),
+    frete: z.union([z.number(), z.string()]).optional(),
     sequencia:z.number().nullable(),
      descricao: z.string().optional(),
      id: z.union([z.number(), z.string()]).optional(),
      controle_lote_serie:z.enum(['S','N']),
-    quantidade_separada: z.coerce.number().optional(),
-    quantidade_faturada: z.coerce.number().optional(),
+    quantidade_separada: z.union([z.number(), z.string()]).optional(),
+    quantidade_faturada: z.union([z.number(), z.string()]).optional(),
     lote_serie: z.number().optional(),
-    sku:z.string(),
-    num_original:z.string(),
-    num_fabricante:z.string(),
     series: z.array(
         z.object({
             lote_serie: z.number(),
-            quantidade: z.coerce.number() ,
+            quantidade: z.string() ,
             serie: z.string(),
             lote: z.string().nullable()
         })
-    ),
-    dados_setor: z.array(
-        z.object({
-            setor:z.string(),
-            local_produto:z.string(),
-            local1_produto:z.string(),
-            local2_produto:z.string(),
-            local3_produto:z.string(),
-            local4_produto:z.string(),
-            estoque:z.number(),
-        })
-    ).optional()
+    )
 });
+
 
 const serviceOrderSchema = z.object({
     codigo: z.union([z.number(), z.string()]),
@@ -162,7 +149,6 @@ const ordersRoute: FastifyPluginAsyncZod = async (server) => {
                 inicio_separacao:z.string().optional().default('2000-01-01 00:00:00'),
                 fim_separacao:z.string().optional().default('2000-01-01 00:00:00'),
                 status_separacao: z.enum(['NAO INICIADA' , 'EM ANDAMENTO' , 'PAUSADA' , 'CONCLUIDA', 'RECUSADA']).optional().default('NAO INICIADA'),
-
                 produtos: z.array(productOrderSchema) ,
                 servicos: z.array(serviceOrderSchema) ,
                 parcelas: z.array(parcelOrderSchema),
