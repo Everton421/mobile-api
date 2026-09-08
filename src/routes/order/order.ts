@@ -26,9 +26,9 @@ const productOrderSchema = z.object({
     quantidade_separada: z.coerce.number().optional(),
     quantidade_faturada: z.coerce.number().optional(),
     lote_serie: z.number().optional(),
-    sku:z.string(),
-    num_original:z.string(),
-    num_fabricante:z.string(),
+    sku:z.string().optional(),
+    num_original:z.string().optional(),
+    num_fabricante:z.string().optional(),
     series: z.array(
         z.object({
             lote_serie: z.number(),
@@ -36,7 +36,7 @@ const productOrderSchema = z.object({
             serie: z.string(),
             lote: z.string().nullable()
         })
-    ),
+    ).optional(),
     dados_setor: z.array(
         z.object({
             setor:z.string(),
