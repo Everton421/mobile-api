@@ -518,7 +518,6 @@ const ordersRoute: FastifyPluginAsyncZod = async (server) => {
                     fornecedor,
                 };
             }));
-            console.log(JSON.stringify(orcamentos_registrados))
             return reply.status(200).send(orcamentos_registrados as any);
         } catch (error) {
             console.error('Erro ao buscar orçamentos:', error);
