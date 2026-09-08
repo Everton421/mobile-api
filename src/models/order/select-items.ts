@@ -16,8 +16,23 @@ export type OrderItemProduct = {
     id?: string;
     controle_lote_serie: 'S' | 'N';
     lote_serie?: number;
+     sku:string,
+     num_original:string,
+     num_fabricante:string,
+
     series?: OrderSeriesType[];
+    dados_setor?:dados_setor[]
 };
+   type dados_setor =
+         {
+            setor: string,
+            local_produto: string,
+            local1_produto:string,
+            local2_produto:string,
+            local3_produto:string,
+            local4_produto:string,
+            estoque: number,
+        } 
 
 export type OrderItemService = {
     pedido: number;
@@ -42,8 +57,9 @@ export class SelectOrderItems {
         const products = await this.findProductsByOrder(dbName, orderCode);
         if (products.length === 0) return products;
 
-        const sqlSeries = `SELECT ps.produto, ps.lote_serie, ps.quantidade, ls.serie, ls.lote
+        const sqlSeries = `SELECT ps.produto, ps.lote_serie, ps.quantidade, ls.serie, ls.lote 
         FROM ${dbName}.pedido_series ps
+        JOIN ${dbName}.produtos p on p.codigo = ps.produto
         JOIN ${dbName}.lotes_series ls ON ls.codigo = ps.lote_serie
         WHERE ps.pedido = ?`;
 
@@ -72,7 +88,9 @@ export class SelectOrderItems {
 
 
     async findProductsByOrder(dbName: string, orderCode: number): Promise<OrderItemProduct[]> {
-        const sql = `SELECT pp.*, p.descricao, p.id, p.controle_lote_serie
+        const sql = `SELECT pp.*, p.descricao, p.id, p.controle_lote_serie,
+         p.descricao, p.sku, p.num_original, p.num_fabricante
+
         FROM ${dbName}.produtos_pedido pp 
         JOIN ${dbName}.produtos p ON pp.codigo = p.codigo
         WHERE pp.pedido = ?`;

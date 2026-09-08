@@ -10,29 +10,44 @@ import { DateService } from '../../utils/dateService.ts';
 import { publishMessage } from '../../services/broker/publish-message.ts';
 import { type OrderReceivedType, type OrderType } from '../../models/order/types/order-type.ts';
 import { SelectSupplier } from '../../models/supplier/select.ts';
+import { SelectProductSector } from '../../models/product-sector/select.ts';
 
 const productOrderSchema = z.object({
     codigo: z.union([z.number(), z.string()]),
-    preco: z.union([z.number(), z.string()]).optional(),
-    quantidade: z.union([z.number(), z.string()]),
-    desconto: z.union([z.number(), z.string()]).optional(),
-    total: z.union([z.number(), z.string()]),
-    frete: z.union([z.number(), z.string()]).optional(),
+    preco: z.coerce.number().optional(),
+    quantidade: z.coerce.number(),
+    desconto: z.coerce.number().optional(),
+    total: z.coerce.number(),
+    frete: z.coerce.number().optional(),
     sequencia:z.number().nullable(),
      descricao: z.string().optional(),
      id: z.union([z.number(), z.string()]).optional(),
      controle_lote_serie:z.enum(['S','N']),
-    quantidade_separada: z.union([z.number(), z.string()]).optional(),
-    quantidade_faturada: z.union([z.number(), z.string()]).optional(),
+    quantidade_separada: z.coerce.number().optional(),
+    quantidade_faturada: z.coerce.number().optional(),
     lote_serie: z.number().optional(),
+    sku:z.string(),
+    num_original:z.string(),
+    num_fabricante:z.string(),
     series: z.array(
         z.object({
             lote_serie: z.number(),
-            quantidade: z.string() ,
+            quantidade: z.coerce.number() ,
             serie: z.string(),
             lote: z.string().nullable()
         })
-    )
+    ),
+    dados_setor: z.array(
+        z.object({
+            setor:z.string(),
+            local_produto:z.string(),
+            local1_produto:z.string(),
+            local2_produto:z.string(),
+            local3_produto:z.string(),
+            local4_produto:z.string(),
+            estoque:z.number(),
+        })
+    ).optional()
 });
 
 const serviceOrderSchema = z.object({
@@ -47,8 +62,8 @@ const serviceOrderSchema = z.object({
 });
 
 const parcelOrderSchema = z.object({
-    parcela: z.union([z.number(), z.string()]),
-    valor: z.union([z.number(), z.string()]),
+    parcela: z.coerce.number(),
+    valor: z.coerce.number(),
     vencimento: z.string()
 });
 
@@ -477,6 +492,7 @@ const ordersRoute: FastifyPluginAsyncZod = async (server) => {
 
                 try {
                     produtos = await selectOrderItems.findProductsWithSeriesByOrder(dbName, i.codigo);
+                      
                 } catch (e) { console.log(`Erro ao buscar os produtos do pedido ${i.codigo}`); }
 
                 try {
@@ -534,6 +550,7 @@ const ordersRoute: FastifyPluginAsyncZod = async (server) => {
         const dateService = new DateService();
         const decodedToken = DecodedToken(String(request.headers.token));
         const selectSupplier = new SelectSupplier();
+        const selectProductSector = new SelectProductSector();
 
         if (!decodedToken.payload?.cnpj) {
             return reply.status(400).send({ success: false, message: 'É necessário informar o token!' });
@@ -551,7 +568,7 @@ const ordersRoute: FastifyPluginAsyncZod = async (server) => {
             }
 
             const orcamentos_registrados = await Promise.all(dados_orcamentos.map(async (i: OrderType) => {
-                let produtos: OrderItemProduct[] = [];
+                let produtos: OrderItemProduct   [] = [];
                 let servicos: OrderItemService[] = [];
                 let parcelas: OrderInstallment[] = [];
                 let cliente: any;
@@ -573,7 +590,12 @@ const ordersRoute: FastifyPluginAsyncZod = async (server) => {
                 }
 
                 try {
-                    produtos = await selectOrderItems.findProductsWithSeriesByOrder(dbName, i.codigo);
+                    const dataprodutos = await selectOrderItems.findProductsWithSeriesByOrder(dbName, i.codigo);
+                    for( const product of dataprodutos){
+                        const dataStockProdutc = await selectProductSector.findProductSectorByPositiveStock(dbName,product.codigo, true );
+                        produtos.push({...product, dados_setor: dataStockProdutc})
+                      }
+
                 } catch (e) { console.log(`Erro ao buscar os produtos do pedido ${i.codigo}`); }
 
                 try {

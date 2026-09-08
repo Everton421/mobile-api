@@ -100,10 +100,11 @@ const orderSeriesRoute: FastifyPluginAsyncZod = async (server) => {
                 if (!productInOrder) {
                     return reply.status(400).send({ success: false, message: `Produto ${item.produto} não encontrado no pedido ${codigo}` });
                 }
+               
 
-                if (item.quantidade_separada > productInOrder.quantidade) {
-                    return reply.status(400).send({ success: false, message: `Quantidade separada do produto ${item.produto} (${item.quantidade_separada}) excede a quantidade do pedido (${productInOrder.quantidade})` });
-                }
+                    if (item.quantidade_separada > productInOrder.quantidade) {
+                        return reply.status(400).send({ success: false, message: `Quantidade separada do produto ${item.produto} (${item.quantidade_separada}) excede a quantidade do pedido (${productInOrder.quantidade})` });
+                    }
 
                 if (item.series && item.series.length > 0) {
                     if (!setor ||  setor === 0) {
@@ -115,12 +116,36 @@ const orderSeriesRoute: FastifyPluginAsyncZod = async (server) => {
                         return reply.status(400).send({ success: false, message: `A soma das séries do produto ${item.produto} (${totalSeriesQty}) não corresponde à quantidade separada (${item.quantidade_separada})` });
                     }
 
-                    for (const serie of item.series) {
-                        const stockRows = await selectLoteSerieSetor.findBySectorAndLoteSerie(empresa, order.setor, serie.lote_serie);
-                        if (stockRows.length === 0 || stockRows[0].estoque < serie.quantidade) {
-                            return reply.status(400).send({ success: false, message: `Estoque insuficiente para lote/série ${serie.lote_serie} no setor ${order.setor}. Disponível: ${stockRows.length > 0 ? stockRows[0].estoque : 0}, solicitado: ${serie.quantidade}` });
+            // if(order.status_separacao == 'EM ANDAMENTO' && status_separacao == 'CONCLUIDA'){
+            //        for (const serie of item.series) {
+            //            const stockRows = await selectLoteSerieSetor.findBySectorAndLoteSerie(empresa, order.setor, serie.lote_serie);
+            //            if (stockRows.length === 0 || stockRows[0].estoque < serie.quantidade) {
+            //                return reply.status(400).send({ success: false, message: `Estoque insuficiente para lote/série ${serie.lote_serie} no setor ${order.setor}. Disponível: ${stockRows.length > 0 ? stockRows[0].estoque : 0}, solicitado: ${serie.quantidade}` });
+            //            }
+            //            }
+            //        }
+                }
+
+                for ( const iten of itens ){
+                    if(iten.series && iten.series?.length){
+                        for(const s of iten.series){
+                            const previousOrderSeries = await orderSeriesModel.findByOrderAndProduct(empresa, codigo, iten.produto);
+
+                             if(previousOrderSeries.length) {
+                              //  console.log(`[V] series encontrada no pedido, status antigo ${order.status_separacao } novo status ${status_separacao}`)
+                                continue;
+                            };
+                              const stockRows = await selectLoteSerieSetor.findBySectorAndLoteSerie(empresa, order.setor,  s.lote_serie);
+                             if(stockRows.length) {
+                                //console.log(`[V] series encontrada no setor,  status do pedido antigo ${order.status_separacao } novo status do pedido  ${status_separacao}`)
+                                continue;
+                            };
+
+                             if(!stockRows.length && !previousOrderSeries.length ){
+                              return reply.status(400).send({ success: false, message: `Estoque insuficiente para lote/série ${ s.lote_serie} no setor ${order.setor}. Disponível: ${stockRows.length > 0 ? stockRows[0].estoque : 0}, solicitado: ${s.quantidade}` });
+                             }
                         }
-                    }
+                    }   
                 }
             }
 
@@ -131,8 +156,8 @@ const orderSeriesRoute: FastifyPluginAsyncZod = async (server) => {
                 await connInstance.query('START TRANSACTION');
 
                 const previousSeries = await orderSeriesModel.findByOrder(empresa, codigo);
-
-                if (previousSeries.length > 0) {
+                
+                 if (previousSeries.length > 0) {
                     for (const ps of previousSeries) {
                         const sql = `UPDATE ${empresa}.lote_serie_setor
                             SET estoque = estoque + ?
@@ -142,25 +167,24 @@ const orderSeriesRoute: FastifyPluginAsyncZod = async (server) => {
                 }
 
                const resultDeleteSeries = await orderSeriesModel.deleteByOrder(empresa, codigo);
-                
                 let totalSeriesRegistradas = 0;
+                    for (const item of itens) {
+                        if (item.series && item.series.length > 0) {
+                            const seriesToInsert = item.series.map(s => ({
+                                produto: item.produto,
+                                lote_serie: s.lote_serie,
+                                quantidade: s.quantidade
+                            }));
+                            await orderSeriesModel.insertSeries(empresa, codigo, seriesToInsert);
+                            totalSeriesRegistradas += seriesToInsert.length;
 
-                for (const item of itens) {
-                    if (item.series && item.series.length > 0) {
-                        const seriesToInsert = item.series.map(s => ({
-                            produto: item.produto,
-                            lote_serie: s.lote_serie,
-                            quantidade: s.quantidade
-                        }));
-                        await orderSeriesModel.insertSeries(empresa, codigo, seriesToInsert);
-                        totalSeriesRegistradas += seriesToInsert.length;
 
-                        for (const serie of item.series) {
-                            const sql = `UPDATE ${empresa}.lote_serie_setor
-                                SET estoque = estoque - ?
-                                WHERE setor = ? AND lote_serie = ?`;
-                            await conn.query(sql, [serie.quantidade, order.setor, serie.lote_serie]);
-                        }
+                            for (const serie of item.series) {
+                                const sql = `UPDATE ${empresa}.lote_serie_setor
+                                    SET estoque = estoque - ?
+                                    WHERE setor = ? AND lote_serie = ?`;
+                                await conn.query(sql, [serie.quantidade, order.setor, serie.lote_serie]);
+                            }
                     }
                 }
 
@@ -173,9 +197,8 @@ const orderSeriesRoute: FastifyPluginAsyncZod = async (server) => {
 
                 let situacaoSeparacao: string;
                 const totalProdutos = orderProducts.length;
-                const totalTotalSeparado = itens.reduce((sum, item) => sum + item.quantidade_separada, 0);
-                const totalTotalPedido = orderProducts.reduce((sum, p) => sum + p.quantidade, 0);
-
+                const totalTotalSeparado = itens.reduce((sum, item) => sum + Number(item.quantidade_separada), 0);
+                 const totalTotalPedido = orderProducts.reduce((sum, p) =>  { return sum + Number(p.quantidade) },0);
                 if (totalTotalSeparado >= totalTotalPedido) {
                     situacaoSeparacao = 'I';
                 } else if (totalTotalSeparado > 0) {

@@ -227,4 +227,51 @@ export class SelectProductSector {
         return Array.from(productMap.values());
     }
 
+     /**
+      * 
+      */   
+    async findProductSectorByPositiveStock(dbName: string, product:number, positive:boolean = true ,sector?:number, ){
+             let baseSql = `
+             SELECT 
+				s.descricao as setor , 
+					ps.local_produto, 
+					ps.local1_produto, 
+					ps.local2_produto, 
+					ps.local3_produto,
+					ps.local4_produto,
+					ps.estoque
+					FROM  ${dbName}.produto_setor ps 
+                JOIN ${dbName}.setores s ON s.codigo = ps.setor
+                 
+				 `;
+          const params =[];
+          const values =[];
+          
+           params.push(` s.ativo = ? `);
+            values.push('S');
+
+        if(product != undefined){
+             params.push(` ps.produto = ? `);
+            values.push(product);
+        }
+            if(positive){
+              params.push(` ps.estoque > ? `);
+              values.push(0);
+            }
+            if(sector != undefined){
+              params.push(` ps.setor = ? `);
+              values.push(sector);
+            }
+            const whereClause = ' WHERE ';
+            const finalSQl = baseSql + whereClause + params.join(" AND ");
+        const [result] = await conn.query(finalSQl, values);
+        return result as  {
+            	  setor:string; 
+				  local_produto:string; 
+				  local1_produto:string; 
+				  local2_produto:string; 
+				  local3_produto:string;
+				  local4_produto:string;
+				  estoque:number }[];
+    }
 }

@@ -110,8 +110,20 @@ export type ProductOrderType = {
     quantidade_separada?: number;
     quantidade_faturada?: number;
     series?: OrderSeriesType[];
+    dados_setor?:dados_setor[]
 };
 
+    type dados_setor =
+         {
+            setor: string,
+            local_produto: string,
+            local1_produto:string,
+            local2_produto:string,
+            local3_produto:string,
+            local4_produto:string,
+            estoque: number,
+        } 
+ 
 export type ServiceOrderType = {
     codigo: number;
     quantidade: number;
