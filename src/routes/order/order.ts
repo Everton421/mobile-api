@@ -47,7 +47,7 @@ const productOrderSchema = z.object({
             local4_produto:z.string(),
             estoque:z.number(),
         })
-    ).nullish()
+    ).optional().nullish()
 });
 
 
