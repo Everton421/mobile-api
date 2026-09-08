@@ -131,7 +131,8 @@ export class SelectOrder {
         situacao_separacao?: 'I' | 'P' | 'N',
         orderBy?: "id_externo" | "codigo" | "id_interno" | "id" | "nome" | "data_recadastro",
         usuario_separacao?:number,
-        filial?:number
+        filial?:number,
+        classificar_por?:'ASC' | 'DESC'
     }): Promise<OrderType[]> {
         const {
             startDate,
@@ -149,7 +150,8 @@ export class SelectOrder {
             orderBy,
             supplier,
             filial,
-            usuario_separacao
+            usuario_separacao,
+            classificar_por
         } = params;
 
         const sql = `SELECT pe.*, 
@@ -249,11 +251,11 @@ export class SelectOrder {
             finalSql += ' WHERE ' + conditions.join(' AND ');
         }
 
-        if (orderBy === "codigo") finalSql += ` ORDER BY pe.codigo `;
-        if (orderBy === "data_recadastro") finalSql += ` ORDER BY pe.data_recadastro `;
-        if (orderBy === "id") finalSql += ` ORDER BY pe.id `;
-        if (orderBy === "id_externo") finalSql += ` ORDER BY pe.id_externo `;
-        if (orderBy === "id_interno") finalSql += ` ORDER BY pe.id_interno `;
+        if (orderBy === "codigo") finalSql += ` ORDER BY pe.codigo ${classificar_por}`;
+        if (orderBy === "data_recadastro") finalSql += ` ORDER BY pe.data_recadastro ${classificar_por}`;
+        if (orderBy === "id") finalSql += ` ORDER BY pe.id ${classificar_por}`;
+        if (orderBy === "id_externo") finalSql += ` ORDER BY pe.id_externo ${classificar_por}`;
+        if (orderBy === "id_interno") finalSql += ` ORDER BY pe.id_interno ${classificar_por}`;
         if (limit) {
             finalSql += ' LIMIT ?';
             values.push(Number(limit));

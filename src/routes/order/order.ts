@@ -20,9 +20,9 @@ const productOrderSchema = z.object({
     total: z.coerce.number(),
     frete: z.coerce.number().optional(),
     sequencia:z.number().nullable(),
-     descricao: z.string().optional(),
-     id: z.union([z.number(), z.string()]).optional(),
-     controle_lote_serie:z.enum(['S','N']),
+    descricao: z.string().optional(),
+    id: z.union([z.number(), z.string()]).optional(),
+    controle_lote_serie:z.enum(['S','N']),
     quantidade_separada: z.coerce.number().optional(),
     quantidade_faturada: z.coerce.number().optional(),
     lote_serie: z.number().optional(),
@@ -40,11 +40,11 @@ const productOrderSchema = z.object({
     dados_setor: z.array(
         z.object({
             setor:z.string(),
-            local_produto:z.string(),
-            local1_produto:z.string(),
-            local2_produto:z.string(),
-            local3_produto:z.string(),
-            local4_produto:z.string(),
+            local_produto:z.string().nullable(),
+            local1_produto:z.string().nullable(),
+            local2_produto:z.string().nullable(),
+            local3_produto:z.string().nullable(),
+            local4_produto:z.string().nullable(),
             estoque:z.number(),
         })
     ).optional().nullish()
@@ -75,7 +75,7 @@ const parcelOrderSchema = z.object({
 const clientSchema = z.object({
     codigo: z.number(),
     nome: z.string().optional(),
-    id: z.union([z.number(), z.string()]).optional()
+    id: z.coerce.string().optional()
 });
 const supplierSchema = z.object({
     codigo: z.number(),
@@ -109,7 +109,7 @@ const orderResponseSchema = z.object({
     produtos: z.array(productOrderSchema).optional(),
     servicos: z.array(serviceOrderSchema).optional(),
     parcelas: z.array(parcelOrderSchema).optional(),
-    cliente: clientSchema.nullish(),
+    cliente: clientSchema.nullable(),
     operacao: z.enum([ 'V' , 'C']).describe('V= venda, C = compra '),
     setor: z.number().optional(),
     fornecedor:supplierSchema.nullish(),
@@ -388,12 +388,13 @@ const ordersRoute: FastifyPluginAsyncZod = async (server) => {
                 situacao: z.enum([ 'EA' ,'*', 'FI' , 'RE' , 'AI' , 'FP', 'BM' ]).optional().describe(" * = todos, EA = Em aberto/orcamento , FI = Faturado integralmente , AI = aprovado/pedido , FP = faturado parcialmente, , BM = Baixado manualmente "),
                 situacao_separacao: z.enum([ 'I' , 'P' , 'N' ]).optional().describe('I =separado integralmente, P = separado parcialmente, N = não foi separado'),
                 orderBy: z.enum(["id_externo", "codigo", "id_interno", "id", "nome" , "data_recadastro"]).default('data_recadastro').describe("Ordena os pedidos atravéz do id_externo, codigo, id_interno, id e pelo nome do cliente ."),
+                classificar_por: z.enum(['ASC','DESC']).default('DESC'),
                 operacao:z.enum(['V', 'C']).optional().describe('V= venda, C = compra '),
                 filial: z.coerce.number().optional(),
                 usuario_separacao: z.coerce.number().int().nonnegative().optional()
             }),
             response: {
-              //  200: z.array(orderResponseSchema),
+                 200: z.array(orderResponseSchema),
                 400: z.object({
                     success: z.boolean(),
                     message: z.string()
@@ -419,7 +420,7 @@ const ordersRoute: FastifyPluginAsyncZod = async (server) => {
 
         const empresa = decodedToken.payload.cnpj.replace(/\D/g, '');
         const dbName = `\`${empresa}\``;
-        const { filial, usuario_separacao, data_final, data_inicial ,operacao, search , tipo, vendedor, limit, situacao, situacao_separacao, orderBy} = request.query;
+        const { filial, classificar_por, usuario_separacao, data_final, data_inicial ,operacao, search , tipo, vendedor, limit, situacao, situacao_separacao, orderBy} = request.query;
 
         const {id_externo, id_interno, codigo  , id } = request.query;
 
@@ -457,7 +458,8 @@ const ordersRoute: FastifyPluginAsyncZod = async (server) => {
                         id_interno,
                         operation:operacao,
                         filial,
-                        usuario_separacao
+                        usuario_separacao,
+                        classificar_por
                         });
 
             if (dados_orcamentos.length === 0) {
@@ -468,7 +470,7 @@ const ordersRoute: FastifyPluginAsyncZod = async (server) => {
                 let produtos: OrderItemProduct[] = [];
                 let servicos: OrderItemService[] = [];
                 let parcelas: OrderInstallment[] = [];
-                let cliente: any;
+                let cliente: any = null;
                 let fornecedor: any = null;
 
                 if(i.operacao == 'C' && i.fornecedor > 0 ){
@@ -516,13 +518,14 @@ const ordersRoute: FastifyPluginAsyncZod = async (server) => {
                     fornecedor,
                 };
             }));
-            return reply.status(200).send(orcamentos_registrados);
+            console.log(JSON.stringify(orcamentos_registrados))
+            return reply.status(200).send(orcamentos_registrados as any);
         } catch (error) {
             console.error('Erro ao buscar orçamentos:', error);
             return reply.status(500).send({ success: false, message: 'Erro interno ao buscar orçamentos.' });
         }
     });
-    server.get('/pedidos/:codigo', {
+    server.get('/pedidos/:codigo', { 
         schema: {
             tags: ['pedidos'],
             headers: z.object({
@@ -575,13 +578,13 @@ const ordersRoute: FastifyPluginAsyncZod = async (server) => {
                 let produtos: OrderItemProduct   [] = [];
                 let servicos: OrderItemService[] = [];
                 let parcelas: OrderInstallment[] = [];
-                let cliente: any;
+                let cliente: any= null;
                 let fornecedor: any = null;
 
                try {
                     const resultCliente = await selectCliente.findByCode(dbName, i.cliente);
                         const { codigo, id , nome }  =resultCliente[0];
-                    cliente = resultCliente.length > 0 ? {  codigo,  nome , id  } : undefined;
+                    cliente = resultCliente.length > 0 ? {  codigo,  nome , id  } : null;
                 } catch (e) { console.log(`Erro ao buscar o cliente do pedido ${i.codigo}`); }
                 try{
 
@@ -619,7 +622,7 @@ const ordersRoute: FastifyPluginAsyncZod = async (server) => {
                     fornecedor
                 };
             }));
-            return reply.status(200).send(orcamentos_registrados[0]);
+            return reply.status(200).send(orcamentos_registrados[0] as any);
         } catch (error) {
             console.error('Erro ao buscar orçamentos:', error);
             return reply.status(500).send({ success: false, message: 'Erro interno ao buscar orçamentos.' });
