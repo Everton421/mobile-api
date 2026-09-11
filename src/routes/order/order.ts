@@ -386,7 +386,26 @@ const ordersRoute: FastifyPluginAsyncZod = async (server) => {
                 tipo:z.coerce.number().optional(),
                 limit: z.coerce.number().optional().default(20),
                 situacao: z.enum([ 'EA' ,'*', 'FI' , 'RE' , 'AI' , 'FP', 'BM' ]).optional().describe(" * = todos, EA = Em aberto/orcamento , FI = Faturado integralmente , AI = aprovado/pedido , FP = faturado parcialmente, , BM = Baixado manualmente "),
-                situacao_separacao: z.enum([ 'I' , 'P' , 'N' ]).optional().describe('I =separado integralmente, P = separado parcialmente, N = não foi separado'),
+                situacao_separacao: z.preprocess(
+                    (val) => (typeof val === 'string' ? [val] : val), // Se for string, transforma em array. Se já for array, mantém.
+                    z.array(z.enum(['I', 'P', 'N'])).optional()
+                ).optional().describe('I = separado integralmente, P = separado parcialmente, N = não foi separado'),
+                    status_separacao: z.preprocess(
+                        (val) => {
+                            if (!val) return undefined;
+                            if (typeof val === 'string') {
+                                return val.split(',').map((item) => item.trim());
+                            }
+                            if (Array.isArray(val)) {
+                                return val;
+                            }
+                            return val;
+                        },
+                        z.array(
+                            z.enum(['CONCLUIDA', 'NAO INICIADA', 'EM ANDAMENTO', 'PAUSADA', 'RECUSADA'])
+                        ).optional()
+                    ).optional().describe('Filtra por múltiplos status de separação'),
+              //  status_separacao: z.string().optional().describe('CONCLUIDA , NAO INICIADA , EM ANDAMENTO , PAUSADA , RECUSADA'),
                 orderBy: z.enum(["id_externo", "codigo", "id_interno", "id", "nome" , "data_recadastro"]).default('data_recadastro').describe("Ordena os pedidos atravéz do id_externo, codigo, id_interno, id e pelo nome do cliente ."),
                 classificar_por: z.enum(['ASC','DESC']).default('DESC'),
                 operacao:z.enum(['V', 'C']).optional().describe('V= venda, C = compra '),
@@ -420,10 +439,10 @@ const ordersRoute: FastifyPluginAsyncZod = async (server) => {
 
         const empresa = decodedToken.payload.cnpj.replace(/\D/g, '');
         const dbName = `\`${empresa}\``;
-        const { filial, classificar_por, usuario_separacao, data_final, data_inicial ,operacao, search , tipo, vendedor, limit, situacao, situacao_separacao, orderBy} = request.query;
+        const { filial, status_separacao, classificar_por, usuario_separacao, data_final, data_inicial ,operacao, search , tipo, vendedor, limit, situacao, situacao_separacao, orderBy} = request.query;
+
 
         const {id_externo, id_interno, codigo  , id } = request.query;
-
 
         if (data_final && !dateService.isValidDate(data_final)) {
             return reply.status(400).send({
@@ -447,11 +466,11 @@ const ordersRoute: FastifyPluginAsyncZod = async (server) => {
                         endDate:data_final,
                         search: search,
                         type:tipo,
-                          limit,
+                        limit,
                         seller:vendedor ,
-                          situacao,
-                          situacao_separacao,
-                          orderBy,
+                        situacao,
+                        situacao_separacao,
+                        orderBy,
                         id_externo,
                         codigo,
                         id,
@@ -459,7 +478,8 @@ const ordersRoute: FastifyPluginAsyncZod = async (server) => {
                         operation:operacao,
                         filial,
                         usuario_separacao,
-                        classificar_por
+                        classificar_por,
+                        status_separacao
                         });
 
             if (dados_orcamentos.length === 0) {

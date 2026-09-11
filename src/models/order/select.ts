@@ -110,7 +110,6 @@ export class SelectOrder {
         const [result] = await conn.query(sql, values);
         return result as OrderType[];
     }
-
     async findByParams(dbName: string, params: {
         startDate?: string;
         endDate?: string;
@@ -128,7 +127,8 @@ export class SelectOrder {
         id_externo?: string;
         id?: string;
         situacao?: 'EA' | 'FI' | 'RE' | 'AI' | 'FP'| 'BM' | '*',
-        situacao_separacao?: 'I' | 'P' | 'N',
+        situacao_separacao?:  ('I' | 'P' | 'N')[],
+        status_separacao?: ('CONCLUIDA' | 'NAO INICIADA' | 'EM ANDAMENTO' | 'PAUSADA' |  'RECUSADA')[];
         orderBy?: "id_externo" | "codigo" | "id_interno" | "id" | "nome" | "data_recadastro",
         usuario_separacao?:number,
         filial?:number,
@@ -151,14 +151,11 @@ export class SelectOrder {
             supplier,
             filial,
             usuario_separacao,
-            classificar_por
+            classificar_por,
+            status_separacao
         } = params;
 
         const sql = `SELECT pe.*, 
-         -- c.id as cliente_id,  
-         -- c.nome as cliente_nome,
-         -- f.id as fornecedor_id,
-         -- f.nome as fornecedor_nome,    
         DATE_FORMAT(pe.data_cadastro, '%Y-%m-%d') AS data_cadastro,
             DATE_FORMAT(pe.data_recadastro, '%Y-%m-%d %H:%i:%s') AS data_recadastro,
           DATE_FORMAT(pe.fim_separacao, '%Y-%m-%d %H:%i:%s') AS fim_separacao,
@@ -204,10 +201,16 @@ export class SelectOrder {
             values.push(Number(usuario_separacao));
         }
 
-        if (situacao_separacao) {
-            conditions.push("pe.situacao_separacao = ?");
-            values.push(String(situacao_separacao));
+         if (situacao_separacao && Array.isArray(situacao_separacao) && situacao_separacao.length > 0) {
+            conditions.push(`pe.situacao_separacao IN (?)`);
+            values.push(situacao_separacao);  
         }
+   if (status_separacao && Array.isArray(status_separacao) && status_separacao.length > 0) {
+            conditions.push(`pe.status_separacao IN (?)`);
+            values.push(status_separacao);  
+        }
+            
+
         if (type) {
             conditions.push("pe.tipo = ?");
             values.push(Number(type));
