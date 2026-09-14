@@ -387,7 +387,7 @@ const ordersRoute: FastifyPluginAsyncZod = async (server) => {
                 limit: z.coerce.number().optional().default(20),
                 situacao: z.enum([ 'EA' ,'*', 'FI' , 'RE' , 'AI' , 'FP', 'BM' ]).optional().describe(" * = todos, EA = Em aberto/orcamento , FI = Faturado integralmente , AI = aprovado/pedido , FP = faturado parcialmente, , BM = Baixado manualmente "),
                 situacao_separacao: z.preprocess(
-                    (val) => (typeof val === 'string' ? [val] : val), // Se for string, transforma em array. Se já for array, mantém.
+                    (val) => (typeof val === 'string' ? [val] : val),  
                     z.array(z.enum(['I', 'P', 'N'])).optional()
                 ).optional().describe('I = separado integralmente, P = separado parcialmente, N = não foi separado'),
                     status_separacao: z.preprocess(
@@ -405,7 +405,6 @@ const ordersRoute: FastifyPluginAsyncZod = async (server) => {
                             z.enum(['CONCLUIDA', 'NAO INICIADA', 'EM ANDAMENTO', 'PAUSADA', 'RECUSADA'])
                         ).optional()
                     ).optional().describe('Filtra por múltiplos status de separação'),
-              //  status_separacao: z.string().optional().describe('CONCLUIDA , NAO INICIADA , EM ANDAMENTO , PAUSADA , RECUSADA'),
                 orderBy: z.enum(["id_externo", "codigo", "id_interno", "id", "nome" , "data_recadastro"]).default('data_recadastro').describe("Ordena os pedidos atravéz do id_externo, codigo, id_interno, id e pelo nome do cliente ."),
                 classificar_por: z.enum(['ASC','DESC']).default('DESC'),
                 operacao:z.enum(['V', 'C']).optional().describe('V= venda, C = compra '),
