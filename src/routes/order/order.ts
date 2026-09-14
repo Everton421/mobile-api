@@ -443,7 +443,6 @@ const ordersRoute: FastifyPluginAsyncZod = async (server) => {
 
 
         const {id_externo, id_interno, codigo  , id } = request.query;
-
         if (data_final && !dateService.isValidDate(data_final)) {
             return reply.status(400).send({
                 success: false,

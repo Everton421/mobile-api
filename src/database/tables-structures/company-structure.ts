@@ -547,7 +547,11 @@ export class CompanyStructure {
 
       { id: '*', descricao: 'Todas as Permissões' },
 
-      
+      { id:'pedidos.ver_separacao_nao_iniciada', descricao:'Visualizar pedidos com separação nao iniciada'},
+      { id:'pedidos.ver_separacao_em_andamento', descricao: 'Visualizar pedidos com separação em andamento'},
+      { id:'pedidos.ver_separacao_pausada', descricao: 'Visualizar pedidos com separação pausada'},
+      { id:'pedidos.ver_separacao_recusada', descricao:'Visualizar pedidos com separação recusada'},
+      { id:'pedidos.ver_separacao_concluida', descricao: 'Visualizar pedidos com separação concluida'},
     ];
 
     const permAdministrador = ['*'];
