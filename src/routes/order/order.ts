@@ -405,7 +405,6 @@ const ordersRoute: FastifyPluginAsyncZod = async (server) => {
                             z.enum(['CONCLUIDA', 'NAO INICIADA', 'EM ANDAMENTO', 'PAUSADA', 'RECUSADA'])
                         ).optional()
                     ).optional().describe('Filtra por múltiplos status de separação'),
-              //  status_separaca: z.string().optional().describe('CONCLUIDA , NAO INICIADA , EM ANDAMENTO , PAUSADA , RECUSADA'),
                 orderBy: z.enum(["id_externo", "codigo", "id_interno", "id", "nome" , "data_recadastro"]).default('data_recadastro').describe("Ordena os pedidos atravéz do id_externo, codigo, id_interno, id e pelo nome do cliente ."),
                 classificar_por: z.enum(['ASC','DESC']).default('DESC'),
                 operacao:z.enum(['V', 'C']).optional().describe('V= venda, C = compra '),
