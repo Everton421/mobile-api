@@ -270,8 +270,10 @@ export class CompanyStructure {
               foto longblob DEFAULT NULL,
               data_cadastro date NOT NULL DEFAULT '0000-00-00',
               data_recadastro  datetime NOT NULL DEFAULT  '0000-00-00 00:00:00',
-              PRIMARY KEY ( produto , sequencia ) USING BTREE
-            ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci ROW_FORMAT=DYNAMIC;
+               codigo  int(11) NOT NULL AUTO_INCREMENT,
+              PRIMARY KEY ( codigo ),
+              UNIQUE KEY  produto  ( produto , sequencia ) USING BTREE
+            ) ENGINE=InnoDB AUTO_INCREMENT=18 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci ROW_FORMAT=DYNAMIC;
               `,
       ` CREATE TABLE IF NOT EXISTS ??.categorias  (
                   codigo  int(11) NOT NULL AUTO_INCREMENT,

@@ -107,12 +107,12 @@ const photosRoute: FastifyPluginAsyncZod = async (server) => {
                 source: z.string().optional()
             }),
             body: z.object({
-                produto: z.number(),
+                produto: z.coerce.number(),
                 fotos: z.array(z.object({
-                    sequencia: z.number().optional(),
+                    sequencia: z.coerce.number(),
                     descricao: z.string().optional(),
-                    link: z.string().optional(),
-                    foto: z.string().optional(),
+                    link: z.coerce.string() ,
+                    foto: z.coerce.string().optional(),
                     data_cadastro: z.string().optional(),
                     data_recadastro: z.string().optional()
                 }))
@@ -120,12 +120,28 @@ const photosRoute: FastifyPluginAsyncZod = async (server) => {
             response: {
                 201: z.object({
                     ok: z.boolean(),
-                    message: z.string()
+                    message: z.string(),
+                    data: z.object({
+                            produto: z.coerce.number(),
+                            fotos: z.array(z.object({
+                                codigo:z.number(),
+                                sequencia: z.coerce.number(),
+                                descricao: z.string().optional(),
+                                link: z.coerce.string() ,
+                                foto: z.coerce.string().optional(),
+                                data_cadastro: z.string().optional(),
+                                data_recadastro: z.string().optional()
+                            }))
+                        })
                 }),
                 400: z.object({
                     success: z.boolean(),
                     message: z.string()
-                })
+                }),
+                500: z.object({
+                    success: z.boolean(),
+                    message: z.string()
+                }) 
             }
         }
     }, async (request, reply) => {
@@ -138,6 +154,7 @@ const photosRoute: FastifyPluginAsyncZod = async (server) => {
         if (!decodedToken.payload?.cnpj) {
             return reply.status(400).send({ success: false, message: 'É necessário informar o token!' });
         }
+       // console.log(request.body)
 
         const empresa = decodedToken.payload.cnpj.replace(/\D/g, '');
         const dbName = `\`${empresa}\``;
@@ -153,42 +170,33 @@ const photosRoute: FastifyPluginAsyncZod = async (server) => {
         }
 
         try {
-            const validItems = await select.findByProduct(dbName, produto);
+            
+            const photosToReturning =[];
 
-            if (validItems.length > 0) {
-                const resultDeleteItens = await deletar.delete(dbName, produto);
-                if (resultDeleteItens.serverStatus > 0) {
                     for (const foto of fotos) {
+
+                         const resultDeleteItens = await deletar.deleteByProductAndSequence(dbName, produto, foto.sequencia);
+                        
                         const photoData: Omit<PhotoType, 'codigo'> = {
                             produto,
                             sequencia: foto.sequencia,
-                            descricao: foto.descricao,
+                            descricao: foto.descricao || '',
                             link: foto.link,
-                            foto: foto.foto,
+                            foto: foto.foto || '',
                             data_cadastro: foto.data_cadastro || dateService.obterDataAtual(),
                             data_recadastro: foto.data_recadastro || dateService.obterDataAtual()
                         };
-                        await insert.insert(dbName, photoData);
-                    }
+                           const resultInsertId = await insert.insert(dbName, photoData);
+                        photosToReturning.push({...photoData, codigo: resultInsertId.insertId});
                 }
-            } else {
-                for (const foto of fotos) {
-                    const photoData: Omit<PhotoType, 'codigo'> = {
-                        produto,
-                        sequencia: foto.sequencia,
-                        descricao: foto.descricao,
-                        link: foto.link,
-                        foto: foto.foto,
-                        data_cadastro: foto.data_cadastro || dateService.obterDataAtual(),
-                        data_recadastro: foto.data_recadastro || dateService.obterDataAtual()
-                    };
-                    await insert.insert(dbName, photoData);
-                }
-            }
-
+         
             return reply.status(201).send({
                 ok: true,
-                msg: 'Fotos alteradas com sucesso'
+                message: 'Fotos alteradas com sucesso',
+                data: {
+                    produto:produto,
+                    fotos: photosToReturning
+                }
             });
         } catch (e) {
             console.error('Erro ao registrar as fotos do produto:', e);

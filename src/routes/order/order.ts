@@ -11,6 +11,7 @@ import { publishMessage } from '../../services/broker/publish-message.ts';
 import { type OrderReceivedType, type OrderType } from '../../models/order/types/order-type.ts';
 import { SelectSupplier } from '../../models/supplier/select.ts';
 import { SelectProductSector } from '../../models/product-sector/select.ts';
+import { SelectPhoto } from '../../models/photo/select.ts';
 
 const productOrderSchema = z.object({
     codigo: z.union([z.number(), z.string()]),
@@ -29,6 +30,9 @@ const productOrderSchema = z.object({
     sku:z.string().optional(),
     num_original:z.string().optional(),
     num_fabricante:z.string().optional(),
+
+    fotos: z.array(z.string()).optional(),
+    
     series: z.array(
         z.object({
             lote_serie: z.number(),
@@ -333,7 +337,7 @@ const ordersRoute: FastifyPluginAsyncZod = async (server) => {
             }
 
             await updatePedido.updateMainData(dbName, codigo, data as unknown as Partial<OrderReceivedType>);
-            await publishMessage(cnpj, 'pedido.atualizado', { ...data, codigo }, source);
+            await publishMessage(cnpj, 'pedido.atualizado', { ...data, pedido: codigo , codigo}, source);
 
             const updated = await selectPedido.findByCode(dbName, codigo);
             const pedido = updated[0];
@@ -571,6 +575,7 @@ const ordersRoute: FastifyPluginAsyncZod = async (server) => {
         const selectPedido = new SelectOrder();
         const selectCliente = new SelectClient();
         const selectOrderItems = new SelectOrderItems();
+        const selectPhoto = new SelectPhoto();
         const dateService = new DateService();
         const decodedToken = DecodedToken(String(request.headers.token));
         const selectSupplier = new SelectSupplier();
@@ -615,9 +620,13 @@ const ordersRoute: FastifyPluginAsyncZod = async (server) => {
 
                 try {
                     const dataprodutos = await selectOrderItems.findProductsWithSeriesByOrder(dbName, i.codigo);
+
                     for( const product of dataprodutos){
+                        const dataFotosProduct = await selectPhoto.findByProduct(dbName, product.codigo);
+                        const fotosProduct =dataFotosProduct.map((i)=> i.link);
+                        
                         const dataStockProdutc = await selectProductSector.findProductSectorByPositiveStock(dbName,product.codigo, true );
-                        produtos.push({...product, dados_setor: dataStockProdutc})
+                        produtos.push({...product, dados_setor: dataStockProdutc , fotos: fotosProduct})
                       }
 
                 } catch (e) { console.log(`Erro ao buscar os produtos do pedido ${i.codigo}`); }

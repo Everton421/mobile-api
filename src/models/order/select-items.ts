@@ -19,7 +19,7 @@ export type OrderItemProduct = {
      sku:string,
      num_original:string,
      num_fabricante:string,
-
+    fotos?:string[]
     series?: OrderSeriesType[];
     dados_setor?:dados_setor[]
 };
