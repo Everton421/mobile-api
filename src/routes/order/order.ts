@@ -30,9 +30,7 @@ const productOrderSchema = z.object({
     sku:z.string().optional(),
     num_original:z.string().optional(),
     num_fabricante:z.string().optional(),
-
-    fotos: z.array(z.string()).optional(),
-    
+    fotos: z.array(z.string()).optional().nullish(),
     series: z.array(
         z.object({
             lote_serie: z.number(),
@@ -416,7 +414,7 @@ const ordersRoute: FastifyPluginAsyncZod = async (server) => {
                 usuario_separacao: z.coerce.number().int().nonnegative().optional()
             }),
             response: {
-                 200: z.array(orderResponseSchema),
+              //   200: z.array(orderResponseSchema),
                 400: z.object({
                     success: z.boolean(),
                     message: z.string()
@@ -540,7 +538,7 @@ const ordersRoute: FastifyPluginAsyncZod = async (server) => {
                     fornecedor,
                 };
             }));
-            return reply.status(200).send(orcamentos_registrados as any);
+            return reply.status(200).send(orcamentos_registrados );
         } catch (error) {
             console.error('Erro ao buscar orçamentos:', error);
             return reply.status(500).send({ success: false, message: 'Erro interno ao buscar orçamentos.' });
