@@ -2,9 +2,35 @@ import { type FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import z from 'zod';
 import { DecodedToken } from '../../services/decoded-token/decodedToken.ts';
 import { SelectUserCompany } from '../../models/user-company/select.ts';
+import { SelectUserBranch } from '../../models/user-branch/select.ts';
 import { InsertUserApi } from '../../models/user-api/insert.ts';
 import { InsertUserCompany } from '../../models/user-company/insert.ts';
 import { PasswordService } from '../../services/password/password.ts';
+import { type typeBranchesCompany } from '../../models/branches-company/types/typ-branches-company.ts';
+
+type UserRow = {
+    codigo: number;
+    nome: string;
+    email: string;
+    cnpj: string;
+    responsavel: string;
+    ativo: string;
+    codigo_perfil: number;
+};
+
+async function listUsersWithFiliais(dbName: string, users: UserRow[]): Promise<(UserRow & { filiais: typeBranchesCompany[] })[]> {
+    if (users.length === 0) return [];
+
+    const selectUserBranch = new SelectUserBranch();
+    const rows = await selectUserBranch.findByUserIds(dbName, users.map(u => u.codigo));
+
+    return users.map(u => ({
+        ...u,
+        filiais: rows
+            .filter(r => r.usuario === u.codigo)
+            .map(({ usuario, ...filial }) => filial)
+    }));
+}
 
 const usersRoute: FastifyPluginAsyncZod = async (server) => {
     server.get('/bulk/usuarios', {
@@ -24,7 +50,14 @@ const usersRoute: FastifyPluginAsyncZod = async (server) => {
                     cnpj: z.string(),
                     responsavel: z.string(),
                     ativo: z.string(),
-                    codigo_perfil: z.number()
+                    codigo_perfil: z.number(),
+                    filiais: z.array(z.object({
+                        codigo: z.coerce.number(),
+                        nome_fantasia: z.coerce.string(),
+                        razao_social: z.coerce.string(),
+                        cnpj: z.coerce.string(),
+                        ativo: z.enum(["S", "N"])
+                    }))
                 })),
                 400: z.object({
                     success: z.boolean(),
@@ -49,7 +82,8 @@ const usersRoute: FastifyPluginAsyncZod = async (server) => {
 
         try {
             const result = await select.findAll(dbName, limit ?? 100);
-            return reply.status(200).send(result);
+            const resultWithFiliais = await listUsersWithFiliais(dbName, result);
+            return reply.status(200).send(resultWithFiliais);
         } catch (e) {
             console.error('Error fetching users:', e);
             return reply.status(500).send({ success: false, message: 'Error fetching users' });
@@ -106,7 +140,14 @@ const usersRoute: FastifyPluginAsyncZod = async (server) => {
                     email: z.coerce.string(),
                     cnpj: z.coerce.string(),
                     responsavel: z.coerce.string(),
-                    ativo: z.coerce.string()
+                    ativo: z.coerce.string(),
+                    filiais: z.array(z.object({
+                        codigo: z.coerce.number(),
+                        nome_fantasia: z.coerce.string(),
+                        razao_social: z.coerce.string(),
+                        cnpj: z.coerce.string(),
+                        ativo: z.enum(["S", "N"])
+                    }))
                 })),
                 400: z.object({
                     success: z.boolean(),
@@ -126,7 +167,8 @@ const usersRoute: FastifyPluginAsyncZod = async (server) => {
         const { codigo, email, limit,nome, ativo, search } = request.query;
         try {
             const result = await select.findByParams(dbName, { codigo, email, limit, nome, ativo, search });
-            return reply.status(200).send(result);
+            const resultWithFiliais = await listUsersWithFiliais(dbName, result);
+            return reply.status(200).send(resultWithFiliais);
         } catch (e) {
             console.error('Error searching users:', e);
             return reply.status(400).send({ success: false, message: 'Error searching users' });

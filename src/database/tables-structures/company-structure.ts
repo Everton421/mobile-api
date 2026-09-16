@@ -170,7 +170,6 @@ export class CompanyStructure {
                 ativo  char(1) NOT NULL DEFAULT 'S',
                   PRIMARY KEY (codigo)
             );`,
-
       
       `CREATE TABLE IF NOT EXISTS ??.produtos_pedido (
                 pedido bigint(20) unsigned NOT NULL DEFAULT 0,
@@ -209,6 +208,14 @@ export class CompanyStructure {
             PRIMARY KEY ( codigo ) USING BTREE
           );
           `,
+           `CREATE TABLE  IF NOT EXISTS  ??.usuarios_filiais  (
+            codigo  int(10) NOT NULL AUTO_INCREMENT,
+            usuario int(10) NOT NULL,
+            filial int(10) NOT NULL,
+            PRIMARY KEY ( codigo ) USING BTREE
+          );
+          `,
+
       `CREATE TABLE IF NOT EXISTS ??.pedido_series (
                 pedido bigint(20) unsigned NOT NULL,
                 produto int(10) unsigned NOT NULL,
