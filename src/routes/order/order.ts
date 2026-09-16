@@ -14,15 +14,15 @@ import { SelectProductSector } from '../../models/product-sector/select.ts';
 import { SelectPhoto } from '../../models/photo/select.ts';
 
 const productOrderSchema = z.object({
-    codigo: z.union([z.number(), z.string()]),
-    preco: z.coerce.number().optional(),
+    codigo:  z.coerce.number(),
+    preco: z.coerce.number(),
     quantidade: z.coerce.number(),
-    desconto: z.coerce.number().optional(),
-    total: z.coerce.number(),
-    frete: z.coerce.number().optional(),
-    sequencia:z.number().nullable(),
+    desconto: z.coerce.number().default(0.00),
+    total: z.coerce.number().default(0.00),
+    frete: z.coerce.number().default(0.00),
+    sequencia:z.coerce.number(),
     descricao: z.string().optional(),
-    id: z.union([z.number(), z.string()]).optional(),
+    id: z.coerce.string(),
     controle_lote_serie:z.enum(['S','N']),
     quantidade_separada: z.coerce.number().optional(),
     quantidade_faturada: z.coerce.number().optional(),
@@ -41,20 +41,16 @@ const productOrderSchema = z.object({
     ).optional(),
     dados_setor: z.array(
         z.object({
-            setor:z.string(),
+            setor:z.coerce.string(),
             local_produto:z.string().nullable(),
             local1_produto:z.string().nullable(),
             local2_produto:z.string().nullable(),
             local3_produto:z.string().nullable(),
             local4_produto:z.string().nullable(),
-            estoque:z.number(),
+            estoque:z.coerce.number(),
         })
     ).optional().nullish()
 });
-
-
-
-
 
 
 const serviceOrderSchema = z.object({
@@ -87,42 +83,42 @@ const supplierSchema = z.object({
 const orderResponseSchema = z.object({
     codigo: z.union([z.number(), z.string()]),
     id: z.union([z.number(), z.string()]).optional(),
-    id_externo: z.union([z.number(), z.string()]).nullable(),
+    id_externo: z.string().nullable(),
     id_interno: z.string().nullable(),
-    vendedor: z.union([z.number(), z.string()]),
-    situacao:z.enum([ 'EA' , 'FI' , 'RE' , 'AI' , 'FP', 'BM' ]).optional().describe(" EA = Em aberto/orcamento , FI = Faturado integralmente , AI = aprovado/pedido , FP = faturado parcialmente, BM = Baixado manualmente"),
+    vendedor: z.coerce.number().default(0),
+    situacao: z.enum([ 'EA' , 'FI' , 'RE' , 'AI' , 'FP', 'BM' ]).optional().describe(" EA = Em aberto/orcamento , FI = Faturado integralmente , AI = aprovado/pedido , FP = faturado parcialmente, BM = Baixado manualmente"),
     situacao_separacao: z.enum(['N','P','I']).optional().describe('I =separado integralmente, P = separado parcialmente, N = não foi separado'),
     contato: z.string().nullable(),
-    descontos: z.union([z.number(), z.string()]).optional(),
-    frete: z.union([z.number(), z.string()]).optional(),
-    forma_pagamento: z.union([z.number(), z.string()]).optional(),
-    quantidade_parcelas: z.union([z.number(), z.string()]).optional(),
-    total_geral: z.union([z.number(), z.string()]).optional(),
-    total_produtos: z.union([z.number(), z.string()]).optional(),
-    total_servicos: z.union([z.number(), z.string()]).optional(),
+    descontos: z.coerce.number().default(0.00),
+    frete: z.coerce.number().default(0.00),
+    forma_pagamento: z.coerce.number().default(0),
+    quantidade_parcelas: z.coerce.number().default(0),
+    total_geral: z.coerce.number().default(0.00),
+    total_produtos: z.coerce.number().default(0.00),
+    total_servicos: z.coerce.number().default(0.00),
     veiculo: z.union([z.number(), z.string()]).optional(),
     data_cadastro: z.string().optional(),
     data_recadastro: z.string().optional(),
-    tipo_os: z.union([z.number(), z.string()]).optional(),
+    tipo_os: z.number(),
     enviado: z.enum(['S' , 'N']).default('S').optional(),
-    tipo: z.union([z.number(), z.string()]).optional().describe('1 = venda, 6 = pedido de compra '),
+    tipo: z.coerce.number().default(1).describe('1 = venda, 6 = pedido de compra '),
     nome: z.string().optional(),
     observacoes: z.string().nullable(),
+    marketplace: z.string().optional().nullish(), // <-- ADICIONADO AQUI
     produtos: z.array(productOrderSchema).optional(),
     servicos: z.array(serviceOrderSchema).optional(),
     parcelas: z.array(parcelOrderSchema).optional(),
     cliente: clientSchema.nullable(),
-    operacao: z.enum([ 'V' , 'C']).describe('V= venda, C = compra '),
-    setor: z.number().optional(),
-    fornecedor:supplierSchema.nullish(),
-    filial: z.coerce.number(),
-    usuario:z.coerce.number().default(0),
-    usuario_separacao:z.coerce.number().default(0),
-    inicio_separacao:z.string(),
-    fim_separacao:z.string(),
+    operacao: z.enum([ 'V' , 'C']).default('V').describe('V= venda, C = compra '),
+    setor: z.coerce.number().default(0),
+    fornecedor: supplierSchema.nullish(),
+    filial: z.coerce.number().default(0),
+    usuario: z.coerce.number().default(0),
+    usuario_separacao: z.coerce.number().default(0),
+    inicio_separacao: z.string(),
+    fim_separacao: z.string(),
     status_separacao: z.enum(['NAO INICIADA' , 'EM ANDAMENTO' , 'PAUSADA' , 'RECUSADA', 'CONCLUIDA']).default('NAO INICIADA'),
     observacoes_separacao: z.string().nullable().optional()
-
 });
          
 const ordersRoute: FastifyPluginAsyncZod = async (server) => {
@@ -414,7 +410,7 @@ const ordersRoute: FastifyPluginAsyncZod = async (server) => {
                 usuario_separacao: z.coerce.number().int().nonnegative().optional()
             }),
             response: {
-              //   200: z.array(orderResponseSchema),
+                //200: z.array(orderResponseSchema),
                 400: z.object({
                     success: z.boolean(),
                     message: z.string()
@@ -442,7 +438,6 @@ const ordersRoute: FastifyPluginAsyncZod = async (server) => {
         const dbName = `\`${empresa}\``;
         const { filial, status_separacao, classificar_por, usuario_separacao, data_final, data_inicial ,operacao, search , tipo, vendedor, limit, situacao, situacao_separacao, orderBy} = request.query;
 
-
         const {id_externo, id_interno, codigo  , id } = request.query;
         if (data_final && !dateService.isValidDate(data_final)) {
             return reply.status(400).send({
@@ -457,7 +452,6 @@ const ordersRoute: FastifyPluginAsyncZod = async (server) => {
                 message: 'Informe a data no formato YYYY-MM-DD HH:mm:ss'
             });
         }
-
 
         try {
             const dados_orcamentos = await selectPedido.findByParams(dbName, 
@@ -512,7 +506,6 @@ const ordersRoute: FastifyPluginAsyncZod = async (server) => {
                         }
 
                     } catch (e) { console.log(`Erro ao buscar o cliente do pedido ${i.codigo} `, e); }
-                
                 }
              
 
@@ -538,7 +531,8 @@ const ordersRoute: FastifyPluginAsyncZod = async (server) => {
                     fornecedor,
                 };
             }));
-            return reply.status(200).send(orcamentos_registrados );
+            console.log(`Pedidos encontrados : ${orcamentos_registrados.length}`)
+            return reply.status(200).send(orcamentos_registrados as any);
         } catch (error) {
             console.error('Erro ao buscar orçamentos:', error);
             return reply.status(500).send({ success: false, message: 'Erro interno ao buscar orçamentos.' });

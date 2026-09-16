@@ -12,10 +12,10 @@ export type OrderItemProduct = {
     total: number;
     quantidade_separada: number;
     quantidade_faturada: number;
-    descricao?: string;
-    id?: string;
+    descricao: string;
+    id: string;
     controle_lote_serie: 'S' | 'N';
-    lote_serie?: number;
+    lote_serie: number;
      sku:string,
      num_original:string,
      num_fabricante:string,
@@ -26,11 +26,11 @@ export type OrderItemProduct = {
    type dados_setor =
          {
             setor: string,
-            local_produto: string,
-            local1_produto:string,
-            local2_produto:string,
-            local3_produto:string,
-            local4_produto:string,
+            local_produto: string | null,
+            local1_produto:string | null,
+            local2_produto:string | null,
+            local3_produto:string | null,
+            local4_produto:string | null,
             estoque: number,
         } 
 
@@ -41,8 +41,8 @@ export type OrderItemService = {
     quantidade: number;
     valor: number;
     total: number;
-    aplicacao?: string;
-    id?: string;
+    aplicacao: string;
+    id: string;
 };
 
 export type OrderInstallment = {

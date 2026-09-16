@@ -93,22 +93,22 @@ export type OrderReceivedType = {
 export type OrderSeriesType = {
     lote_serie: number;
     quantidade: number;
-    serie?: string;
-    lote?: string;
+    serie: string;
+    lote: string | null;
 };
 
 export type ProductOrderType = {
     codigo: number;
     preco: number;
-    id?: string;
+    id: string;
     sequencia:number;
     quantidade: number;
     desconto: number;
     total: number;
-    frete?: number;
-    descricao?: string;
-    quantidade_separada?: number;
-    quantidade_faturada?: number;
+    frete: number;
+    descricao: string;
+    quantidade_separada: number;
+    quantidade_faturada: number;
     series?: OrderSeriesType[];
     dados_setor?:dados_setor[]
 };
