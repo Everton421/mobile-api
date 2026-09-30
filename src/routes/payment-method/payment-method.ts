@@ -20,17 +20,17 @@ const paymentMethodsRoute: FastifyPluginAsyncZod = async (server) => {
             }),
             response: {
                 200: z.array(z.object({
-                    codigo: z.number(),
-                    id: z.string(),
-                    data_cadastro: z.string(),
-                    data_recadastro: z.string(),
-                    descricao: z.string(),
-                    desc_maximo: z.number(),
-                    parcelas: z.number(),
-                    intervalo: z.number(),
-                    recebimento: z.number(),
-                    ativo: z.string()
-                })),
+                        codigo: z.number(),
+                        id: z.coerce.string(),
+                        data_cadastro: z.string(),
+                        data_recadastro: z.string(),
+                        descricao: z.string(),
+                        desc_maximo: z.coerce.number(),
+                        parcelas: z.coerce.number(),
+                        intervalo: z.coerce.number(),
+                        recebimento: z.coerce.number(),
+                        ativo: z.string()
+                    })),
                 400: z.object({
                     success: z.boolean(),
                     message: z.string()
@@ -74,14 +74,14 @@ const paymentMethodsRoute: FastifyPluginAsyncZod = async (server) => {
             response: {
                 200: z.array(z.object({
                     codigo: z.number(),
-                    id: z.string(),
+                    id: z.coerce.string(),
                     data_cadastro: z.string(),
                     data_recadastro: z.string(),
                     descricao: z.string(),
-                    desc_maximo: z.number(),
-                    parcelas: z.number(),
-                    intervalo: z.number(),
-                    recebimento: z.number(),
+                    desc_maximo: z.coerce.number(),
+                    parcelas: z.coerce.number(),
+                    intervalo: z.coerce.number(),
+                    recebimento: z.coerce.number(),
                     ativo: z.string()
                 })),
                 400: z.object({
