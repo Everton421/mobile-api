@@ -21,11 +21,11 @@ const getServiceOrderTypesRoute: FastifyPluginAsyncZod = async (server) => {
                 response: {
                 200: z.array(z.object({
                     codigo: z.number(),
-                    id: z.string(),
-                    data_cadastro: z.string(),
-                    data_recadastro: z.string(),
-                    descricao: z.string(),
-                    ativo: z.string()
+                    id: z.coerce.string(),
+                    data_cadastro: z.coerce.string(),
+                    data_recadastro: z.coerce.string(),
+                    descricao: z.coerce.string(),
+                    ativo: z.enum(['S' , 'N']).default('S')
                 })),
                 400: z.object({
                     success: z.boolean(),
@@ -46,6 +46,7 @@ const getServiceOrderTypesRoute: FastifyPluginAsyncZod = async (server) => {
 
         try {
             const result = await select.findAll(dbName, data_recadastro);
+            
             return reply.status(200).send(result);
         } catch (e) {
             console.error('Error fetching service order types:', e);
@@ -71,11 +72,11 @@ const getServiceOrderTypesRoute: FastifyPluginAsyncZod = async (server) => {
             response: {
                 200: z.array(z.object({
                     codigo: z.number(),
-                    id: z.string(),
-                    data_cadastro: z.string(),
-                    data_recadastro: z.string(),
-                    descricao: z.string(),
-                    ativo: z.string()
+                    id: z.coerce.string(),
+                    data_cadastro: z.coerce.string(),
+                    data_recadastro: z.coerce.string(),
+                    descricao: z.coerce.string(),
+                    ativo: z.enum(['S' , 'N']).default('S')
                 })),
                 400: z.object({
                     success: z.boolean(),

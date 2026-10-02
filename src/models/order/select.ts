@@ -296,6 +296,17 @@ export class SelectOrder {
         return result as OrderType[];
     }
 
+        /**
+         * 
+         * @param dbName nome do banco de dados 
+         * @returns Retorna o ultimo codigo de pedido registrad, Ex.: { codigo: 10596 }
+         */
+       async findLastInsertId(dbName: string ): Promise<[{codigo:number}]> {
+        const sql = `SELECT  max(codigo) as codigo FROM ${dbName}.pedidos `;
+        const  [result] = await conn.query(sql );
+        return result  as [{codigo:number}] ;
+    }
+
     async findStats(dbName: string, seller: number): Promise<{
         total_faturado: string;
         total_pedidos: string;

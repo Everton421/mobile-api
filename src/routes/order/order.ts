@@ -1,5 +1,5 @@
 import { type FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
-import z, { number } from 'zod';
+import z, { any, number } from 'zod';
 import { DecodedToken } from '../../services/decoded-token/decodedToken.ts';
 import { SelectOrder } from '../../models/order/select.ts';
 import { InsertOrder } from '../../models/order/insert.ts';
@@ -73,12 +73,28 @@ const parcelOrderSchema = z.object({
 const clientSchema = z.object({
     codigo: z.number(),
     nome: z.string().optional(),
-    id: z.coerce.string().optional()
+    id: z.coerce.string().optional(),
+    cep: z.coerce.string().optional(),
+    bairro: z.coerce.string().optional(),
+    celular: z.coerce.string().optional(),
+    cidade: z.coerce.string().optional(),
+    estado: z.coerce.string().optional(),
+    numero: z.coerce.string().optional(),
+    endereco: z.coerce.string().optional(),
+    cnpj: z.coerce.string()
 });
 const supplierSchema = z.object({
     codigo: z.number(),
     nome: z.string().optional(),
-    id: z.union([z.number(), z.string()]).optional()
+    id: z.union([z.number(), z.string()]).optional(),
+    cep: z.coerce.string().optional(),
+    bairro: z.coerce.string().optional(),
+    celular: z.coerce.string().optional(),
+    cidade: z.coerce.string().optional(),
+    estado: z.coerce.string().optional(),
+    numero: z.coerce.string().optional(),
+    endereco: z.coerce.string().optional(),
+    cnpj: z.coerce.string()
 });
 const orderResponseSchema = z.object({
     codigo: z.union([z.number(), z.string()]),
@@ -597,14 +613,18 @@ const ordersRoute: FastifyPluginAsyncZod = async (server) => {
 
                try {
                     const resultCliente = await selectCliente.findByCode(dbName, i.cliente);
-                        const { codigo, id , nome }  =resultCliente[0];
-                    cliente = resultCliente.length > 0 ? {  codigo,  nome , id  } : null;
+                        const { codigo,cnpj, id, nome , cep, bairro, celular, cidade ,estado, numero, endereco   }  =resultCliente[0];
+                    cliente = resultCliente.length > 0 ? 
+                     {codigo, id, nome , cnpj, cep, bairro, celular, cidade ,estado, numero, endereco  }
+                    : null;
                 } catch (e) { console.log(`Erro ao buscar o cliente do pedido ${i.codigo}`); }
                 try{
 
                    const resultSupplier = await selectSupplier.findByCode(dbName, i.fornecedor);
-                   const { codigo, id, nome } =resultSupplier[0];
-                    fornecedor = resultSupplier.length > 0 ? {  codigo,  nome, id } : null;
+                   const { codigo, id, nome , cep, bairro, celular, cidade ,estado, numero, endereco  } =resultSupplier[0];
+                    fornecedor = resultSupplier.length > 0 ?
+                     {codigo, id, nome , cep, bairro, celular, cidade ,estado, numero, endereco  }
+                      : null;
                
                 }catch(e){
 
@@ -807,6 +827,48 @@ const ordersRoute: FastifyPluginAsyncZod = async (server) => {
             return reply.status(500).send({ success: false, message: 'Erro interno ao buscar os dados dos orçamentos.' });
         }
     });
+ server.get('/pedidos/lastId', {
+        schema: {
+            tags: ['pedidos'],
+            description:'Retorna o codigo do ultimo pedido registrado. Ex.: { codigo:15668 }',
+            headers: z.object({
+                token: z.string()
+            }),
+            response: {
+                 200: z.object({
+                    codigo: z.number() 
+                }),
+                400: z.object({
+                    success: z.boolean(),
+                    message: z.string()
+                }),
+                500: z.object({
+                    success: z.boolean(),
+                    message: z.string()
+                })
+            }
+        }
+    }, async (request, reply) => {
+        const selectPedido = new SelectOrder();
+       
+        const decodedToken = DecodedToken(String(request.headers.token));
+
+        if (!decodedToken.payload?.cnpj) {
+            return reply.status(400).send({ success: false, message: 'É necessário informar o token!' });
+        }
+
+        const empresa = decodedToken.payload.cnpj.replace(/\D/g, '');
+        const dbName = `\`${empresa}\``;
+
+        try {
+            const data = await selectPedido.findLastInsertId(dbName)
+            return reply.status(200).send(data[0]  );
+        } catch (error) {
+            console.error('Erro ao buscar orçamentos:', error);
+            return reply.status(500).send({ success: false, message: 'Erro interno ao buscar orçamentos.' });
+        }
+    });
+    
 };
 
 export { ordersRoute };
