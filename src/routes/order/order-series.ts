@@ -15,15 +15,15 @@ const separacaoItemSchema =  z.object({
             produto: z.number(),
             quantidade_separada: z.number(),
             series: z.array(z.object({
-                lote_serie: z.number(),
-                quantidade: z.number()
+                lote_serie: z.coerce.number(),
+                quantidade: z.coerce.number()
             })).optional()
         }) 
     ),
-    setor: z.number(),
+    setor: z.coerce.number(),
     status_separacao: z.enum(['NAO INICIADA' , 'EM ANDAMENTO' , 'PAUSADA' , 'RECUSADA', 'CONCLUIDA']),
     usuario_separacao: z.coerce.number(),
-    observacoes_separacao: z.string().optional()
+    observacoes_separacao: z.coerce.string().optional()
 })
 
 const orderSeriesRoute: FastifyPluginAsyncZod = async (server) => {
