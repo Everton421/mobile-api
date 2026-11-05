@@ -17,6 +17,7 @@ function cleanupConnection() {
 export async function connectRabbitMQ(): Promise<void> {
     const broker_url = process.env.BROKER_URL;
     if (!exchange) throw new Error("process.env.EXCHANGE_NAME não configurada ");
+    if (!internalExchangeName) throw new Error("process.env.INTERNAL_EXCHANGE_NAME não configurada ");
     if (!broker_url) throw new Error("process.env.BROKER_URL não configurada ");
 
     if (connectionRabbitMQ && channel) {
@@ -31,6 +32,7 @@ export async function connectRabbitMQ(): Promise<void> {
         });
         channel = await connectionRabbitMQ.createChannel();
         await channel.assertExchange(exchange, 'topic', { durable: true });
+        await channel.assertExchange(internalExchangeName, 'topic', { durable: true });
 
         connectionRabbitMQ.on('close', () => {
             console.warn("[ RabbitMQ ] Conexão fechada. Tentando reconectar...");
