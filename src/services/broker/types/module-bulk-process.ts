@@ -1,0 +1,1 @@
+export type modulesBulkProcess = "loteseriesetor"  | "prodsetor"

@@ -4,7 +4,7 @@ import { DecodedToken } from '../../services/decoded-token/decodedToken.ts';
 import { SelectProductSector } from '../../models/product-sector/select.ts';
 import { InsertProductSector } from '../../models/product-sector/insert.ts';
 import { DateService } from '../../utils/dateService.ts';
-import { publishMessage } from '../../services/broker/publish-message.ts';
+import { publishInternalMessage, publishMessage } from '../../services/broker/publish-message.ts';
 import { type ProductSectorType } from '../../models/product-sector/types/product-sector-type.ts';
 
 const productSectorResponseSchema = z.object({
@@ -263,7 +263,7 @@ const productSectorRoute: FastifyPluginAsyncZod = async (server) => {
         }
     });
 
-    server.put('/bulk/produtos-setor', {
+       server.put('/bulk/produtos-setor', {
         schema: {
             tags: ['produtos-setor'],
             headers: z.object({
@@ -278,6 +278,12 @@ const productSectorRoute: FastifyPluginAsyncZod = async (server) => {
                         produto: z.number()
                     }))
                 }),
+                 202: z.object({
+                     success: z.boolean(), 
+                    message: z.string(),
+                    lote_id: z.string()
+                 }),
+
                 400: z.object({
                     success: z.boolean(),
                     message: z.string()
@@ -306,57 +312,130 @@ const productSectorRoute: FastifyPluginAsyncZod = async (server) => {
         const updatedItens: { produto: number }[] = [];
 
         try {
-            for (const item of dados) {
-                if (!item.setor || !item.produto || item.estoque === undefined) {
-                    return reply.status(400).send({ success: false, message: 'Setor, produto and estoque are required for each item' });
-                }
 
-                const data_recadastro = item.data_recadastro || dateService.obterDataHoraAtual();
+                const loteId = crypto.randomUUID();
+                const QUEUE_CHUNK_SIZE = 5000;
+                
+                for( let i =0; i < dados.length; i += QUEUE_CHUNK_SIZE){
 
-                const existing = await select.findByProductAndSector(dbName, item.produto, item.setor);
+                    const chunk = dados.slice(i, i + QUEUE_CHUNK_SIZE);
 
-                if (existing.length > 0) {
-                    const resultVerify = existing[0];
-                        const objInsert = {
-                            setor: item.setor,
-                            produto: item.produto,
-                            estoque: item.estoque,
-                            local_produto: item.local_produto || '',
-                            local1_produto: item.local1_produto || '',
-                            local2_produto: item.local2_produto || '',
-                            local3_produto: item.local3_produto || '',
-                            local4_produto: item.local4_produto || '',
-                            data_recadastro
-                        };
-                        await insert.insertOrUpdate(dbName, objInsert);
-                        const [updated] = await select.findByProductAndSector(dbName, item.produto, item.setor);
-                        await publishMessage(empresa, 'produtosetor.atualizado', updated, source);
-                        updatedItens.push({ produto: item.produto });
-                } else {
-                    const objInsert = {
-                        setor: item.setor,
-                        produto: item.produto,
-                        estoque: item.estoque,
-                        local_produto: item.local_produto || '',
-                        local1_produto: item.local1_produto || '' ,
-                        local2_produto: item.local2_produto || '' ,
-                        local3_produto: item.local3_produto || '' ,
-                        local4_produto: item.local4_produto || '' ,
-                        data_recadastro
+                    const payloadFila = {
+                         loteId,
+                         dbName,
+                         empresa,
+                         source,
+                         itens: chunk
                     };
-                    await insert.insertOrUpdate(dbName, objInsert);
-                    const [newResult] = await select.findByProductAndSector(dbName, item.produto, item.setor);
-                    await publishMessage(empresa, 'produtosetor.atualizado', newResult, source);
-                    updatedItens.push({ produto: item.produto });
+                        await publishInternalMessage(empresa, `prodsetor.processar.${empresa}`, payloadFila);
                 }
-            }
+                   return reply.status(202).send({ 
+                    success: true, 
+                    message: 'O processamento do lote foi iniciado em segundo plano.',
+                    lote_id: loteId
+                });
 
-            return reply.status(200).send({ success: true, itens: updatedItens });
         } catch (e) {
             console.error('Error updating product sectors offline:', e);
             return reply.status(400).send({ success: false, message: 'Error updating product sectors offline' });
         }
     });
+
+    // server.put('/bulk/produtos-setor', {
+    //     schema: {
+    //         tags: ['produtos-setor'],
+    //         headers: z.object({
+    //             token: z.string(),
+    //             source: z.string().optional()
+    //         }),
+    //         body: productSectorOfflineBodySchema,
+    //         response: {
+    //             200: z.object({
+    //                 success: z.boolean(),
+    //                 itens: z.array(z.object({
+    //                     produto: z.number()
+    //                 }))
+    //             }),
+    //             400: z.object({
+    //                 success: z.boolean(),
+    //                 message: z.string()
+    //             })
+    //         }
+    //     }
+    // }, async (request, reply) => {
+    //     const dateService = new DateService();
+    //     const select = new SelectProductSector();
+    //     const insert = new InsertProductSector();
+    //     const decodedToken = DecodedToken(String(request.headers.token));
+
+    //     if (!decodedToken.payload?.cnpj) {
+    //         return reply.status(400).send({ success: false, message: 'Company identifier not provided' });
+    //     }
+
+    //     const empresa = decodedToken.payload.cnpj.replace(/\D/g, '');
+    //     const dbName = `\`${empresa}\``;
+    //     const source = request.headers.source as string || 'api_internal';
+    //     const dados = request.body;
+
+    //     if (!Array.isArray(dados) || dados.length === 0) {
+    //         return reply.status(400).send({ success: false, message: 'Array of items is required' });
+    //     }
+
+    //     const updatedItens: { produto: number }[] = [];
+
+    //     try {
+    //         for (const item of dados) {
+    //             if (!item.setor || !item.produto || item.estoque === undefined) {
+    //                 return reply.status(400).send({ success: false, message: 'Setor, produto and estoque are required for each item' });
+    //             }
+
+    //             const data_recadastro = item.data_recadastro || dateService.obterDataHoraAtual();
+
+    //             const existing = await select.findByProductAndSector(dbName, item.produto, item.setor);
+
+    //             if (existing.length > 0) {
+    //                 const resultVerify = existing[0];
+    //                     const objInsert = {
+    //                         setor: item.setor,
+    //                         produto: item.produto,
+    //                         estoque: item.estoque,
+    //                         local_produto: item.local_produto || '',
+    //                         local1_produto: item.local1_produto || '',
+    //                         local2_produto: item.local2_produto || '',
+    //                         local3_produto: item.local3_produto || '',
+    //                         local4_produto: item.local4_produto || '',
+    //                         data_recadastro
+    //                     };
+    //                     await insert.insertOrUpdate(dbName, objInsert);
+    //                     const [updated] = await select.findByProductAndSector(dbName, item.produto, item.setor);
+    //                     await publishMessage(empresa, 'produtosetor.atualizado', updated, source);
+    //                     updatedItens.push({ produto: item.produto });
+    //             } else {
+    //                 const objInsert = {
+    //                     setor: item.setor,
+    //                     produto: item.produto,
+    //                     estoque: item.estoque,
+    //                     local_produto: item.local_produto || '',
+    //                     local1_produto: item.local1_produto || '' ,
+    //                     local2_produto: item.local2_produto || '' ,
+    //                     local3_produto: item.local3_produto || '' ,
+    //                     local4_produto: item.local4_produto || '' ,
+    //                     data_recadastro
+    //                 };
+    //                 await insert.insertOrUpdate(dbName, objInsert);
+    //                 const [newResult] = await select.findByProductAndSector(dbName, item.produto, item.setor);
+    //                 await publishMessage(empresa, 'produtosetor.atualizado', newResult, source);
+    //                 updatedItens.push({ produto: item.produto });
+    //             }
+    //         }
+
+    //         return reply.status(200).send({ success: true, itens: updatedItens });
+    //     } catch (e) {
+    //         console.error('Error updating product sectors offline:', e);
+    //         return reply.status(400).send({ success: false, message: 'Error updating product sectors offline' });
+    //     }
+    // });
+    
 };
 
 export { productSectorRoute };

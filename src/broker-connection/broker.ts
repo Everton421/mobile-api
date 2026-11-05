@@ -1,9 +1,10 @@
 
 import amqp, { type Channel, type ChannelModel } from 'amqplib';
 
-let connectionRabbitMQ: ChannelModel | null = null;
-let channel: Channel | null = null;
+export let connectionRabbitMQ: ChannelModel | null = null;
+export let channel: Channel | null = null;
 const exchange = process.env.EXCHANGE_NAME;
+const internalExchangeName = process.env.INTERNAL_EXCHANGE_NAME;
 
 function cleanupConnection() {
     if (connectionRabbitMQ) {
@@ -73,3 +74,28 @@ export async function publishExchangeMessage(routingKey: string, data: any): Pro
         return false;
     }
 }
+ 
+export async function publishInternalExchangeMessage(routingKey: string, data: any): Promise<boolean> {
+    if (!channel || !connectionRabbitMQ) {
+        console.warn("[RabbitMQ] Sem conexão ativa. Mensagem não enviada.");
+        return false;
+    }
+    if (!internalExchangeName) throw new Error("process.env.INTERNAL_EXCHANGE_NAME não configurada ");
+
+    try {
+        const buffer = Buffer.from(JSON.stringify(data));
+
+        return channel.publish(internalExchangeName, routingKey, buffer, {
+            persistent: true,
+        });
+    } catch (error) {
+        console.error("[RabbitMQ] Erro ao tentar publicar:", error);
+        return false;
+    }
+}
+
+
+
+
+
+

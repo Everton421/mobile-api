@@ -1,7 +1,6 @@
-import { connectRabbitMQ, publishExchangeMessage } from "../../broker-connection/broker.ts";
+import { connectRabbitMQ, publishExchangeMessage, publishInternalExchangeMessage } from "../../broker-connection/broker.ts";
 import { sendWebhooks } from "../webhook/webhook-dispatcher.ts";
-
-
+ 
 
 /**
  * 
@@ -15,14 +14,8 @@ export async function publishMessage(cnpj: string, evento: string, data: any, so
 
     await connectRabbitMQ();
     const cnpjCliente = cnpj;
-
     const metadata_source = source || 'api_internal';
-    // 2. Construção da Routing Key
-    // Padrão: tenant.<CNPJ>.<DOMINIO>.<EVENTO>
     const routingKey = `tenant.${cnpjCliente}.${evento}`;
-
-    // 3. Payload (O que o consumidor precisa saber)
-    // IMPORTANTE: Mande o tenant_id dentro do JSON também para facilitar o uso no consumer
     const mensagem = {
         metadata: {
             tenant_id: cnpjCliente,
@@ -46,3 +39,34 @@ export async function publishMessage(cnpj: string, evento: string, data: any, so
 
     return enviado;
 }
+
+
+
+
+ 
+export async function publishInternalMessage(cnpj: string, evento: string, data: any ) {
+
+    await connectRabbitMQ();
+    const cnpjCliente = cnpj;
+
+    
+    const mensagem = {
+        metadata: {
+            tenant_id: cnpjCliente,
+            event: evento,
+            timestamp: new Date().toISOString(),
+        },
+        data: data
+    };
+
+    console.log(`📤 Enviando para: ${evento}`);
+
+    const enviado = await publishInternalExchangeMessage(evento, mensagem);
+
+    if (enviado) console.log("✅ Mensagem enviada com sucesso!");
+    else console.error("❌ Falha no envio.");
+
+
+    return enviado;
+}
+

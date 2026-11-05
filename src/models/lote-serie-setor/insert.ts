@@ -14,6 +14,31 @@ export class InsertLoteSerieSetor {
         return { affectedRows: (result as any).affectedRows };
     }
 
+       async insertOrUpdateBulk(dbName: string, data: LoteSerieSetorInput[]): Promise<{ affectedRows: number }> {
+
+        const params = [];
+        const values = [];
+
+        if(data.length > 0 ){
+            
+            for(const i of data  ){
+                params.push( "(?, ?, ?, ?)" )
+                values.push(i.setor, i.produto, i.lote_serie, i.estoque );
+            }
+        
+        }
+
+        const sql = `INSERT INTO ${dbName}.lote_serie_setor (setor, produto, lote_serie, estoque)
+            VALUES ${params.join(', ')}
+            ON DUPLICATE KEY UPDATE
+                estoque = VALUES(estoque),
+                produto = VALUES(produto)`;
+                 
+ 
+        const [result] = await conn.query(sql, values);
+        return { affectedRows: (result as any).affectedRows };
+    }
+
     async incrementStock(dbName: string, setor: number, lote_serie: number, quantidade: number): Promise<void> {
         const sql = `UPDATE ${dbName}.lote_serie_setor 
                      SET estoque = estoque + ?
@@ -35,4 +60,7 @@ export class InsertLoteSerieSetor {
                 estoque = estoque + VALUES(estoque)`;
         await conn.query(sql, [setor, produto, lote_serie, quantidade]);
     }
+
+
+    
 }

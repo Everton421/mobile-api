@@ -1,9 +1,9 @@
 import { type FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
-import z from 'zod';
+import z, { boolean, promise } from 'zod';
 import { DecodedToken } from '../../services/decoded-token/decodedToken.ts';
 import { SelectLoteSerieSetor } from '../../models/lote-serie-setor/select.ts';
 import { InsertLoteSerieSetor } from '../../models/lote-serie-setor/insert.ts';
-import { publishMessage } from '../../services/broker/publish-message.ts';
+import { publishInternalMessage, publishMessage } from '../../services/broker/publish-message.ts';
 
 const loteSerieSetorResponseSchema = z.object({
     setor: z.number(),
@@ -114,7 +114,7 @@ const loteSerieSetorRoute: FastifyPluginAsyncZod = async (server) => {
         }
     });
 
-    server.put('/bulk/lote-serie-setor', {
+       server.put('/bulk/lote-serie-setor', {
         schema: {
             tags: ['lote-serie-setor'],
             headers: z.object({
@@ -123,13 +123,16 @@ const loteSerieSetorRoute: FastifyPluginAsyncZod = async (server) => {
             }),
             body: loteSerieSetorBulkBodySchema,
             response: {
-                200: z.object({
-                    success: z.boolean(),
-                    itens: z.array(z.object({
-                        lote_serie: z.number()
-                    }))
+                202: z.object({
+                     success: z.boolean(), 
+                    message: z.string(),
+                    lote_id: z.string()
                 }),
                 400: z.object({
+                    success: z.boolean(),
+                    message: z.string()
+                }),
+                 500: z.object({
                     success: z.boolean(),
                     message: z.string()
                 })
@@ -148,25 +151,35 @@ const loteSerieSetorRoute: FastifyPluginAsyncZod = async (server) => {
         if (!Array.isArray(dados) || dados.length === 0) {
             return reply.status(400).send({ success: false, message: 'Array of items is required' });
         }
-
-        const updatedItens: { lote_serie: number }[] = [];
-
         try {
-            const insert = new InsertLoteSerieSetor();
-            for (const item of dados) {
-                if (!item.setor || !item.produto || !item.lote_serie || item.estoque === undefined) {
-                    return reply.status(400).send({ success: false, message: 'setor, produto, lote_serie and estoque are required for each item' });
-                }
-                await insert.insertOrUpdate(dbName, item);
-                await publishMessage(empresa, 'loteseriesetor.atualizado', item, source);
-                updatedItens.push({ lote_serie: item.lote_serie });
-            }
+                const loteId = crypto.randomUUID(); 
+                 const QUEUE_CHUNK_SIZE = 5000;  
 
-            return reply.status(200).send({ success: true, itens: updatedItens });
-        } catch (e) {
-            console.error('Error updating lote-serie-setor bulk:', e);
-            return reply.status(400).send({ success: false, message: 'Error updating lote-serie-setor bulk' });
-        }
+                for (let i = 0; i < dados.length; i += QUEUE_CHUNK_SIZE) {
+                    const chunk = dados.slice(i, i + QUEUE_CHUNK_SIZE);
+                    
+                    const payloadFila = {
+                        loteId,
+                        dbName,
+                        empresa,
+                        source,
+                        itens: chunk
+                    };
+
+                   await publishInternalMessage(empresa, `loteseriesetor.processar.${empresa}`, payloadFila);
+
+                }
+
+                return reply.status(202).send({ 
+                    success: true, 
+                    message: 'O processamento do lote foi iniciado em segundo plano.',
+                    lote_id: loteId
+                });
+
+            } catch (e) {
+                console.error('Error triggering background job:', e);
+                return reply.status(500).send({ success: false, message: 'Internal server error' });
+            }
     });
 };
 

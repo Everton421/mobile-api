@@ -7,6 +7,8 @@
   "scripts": {
     "dev": "node --env-file .env --watch --experimental-strip-types src/server.ts",
     "start": "node --env-file=.env  --experimental-strip-types src/server.ts",
+   "start:worker":  "node --env-file=.env --watch --experimental-strip-types src/services/broker/internal-worker.ts",
+
     "db:seed": " node --disable-warning=ExperimentalWarning --env-file .env  --experimental-strip-types --warnings src/database/seed.ts",
     "teste:all": "node --disable-warning=ExperimentalWarning --env-file .env.test  --experimental-strip-types --warnings --experimental-test-coverage --test ",
     "teste:seed": " node --disable-warning=ExperimentalWarning --env-file .env.test  --experimental-strip-types --warnings src/database/seed.ts",
@@ -35,7 +37,7 @@
     "jsonwebtoken": "^9.0.3",
     "mysql2": "^3.15.1",
     "pino-pretty": "^13.1.1",
-    "stripe": "^20.3.1",
+    "stripe": "^20.3.1", 
     "supertest": "^7.2.2",
     "tsc": "^2.0.4",
     "zod": "^4.1.11"
