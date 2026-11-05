@@ -1,1 +1,1 @@
-export type modulesBulkProcess = "loteseriesetor"  | "prodsetor"
+export type modulesBulkProcess = "loteseriesetor"  | "prodsetor" | "loteserie"

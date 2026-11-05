@@ -1,4 +1,5 @@
 import { InsertLoteSerieSetor } from "../../models/lote-serie-setor/insert.ts";
+import { InsertLotesSeries } from "../../models/lotes-series/insert.ts";
 import { InsertProductSector } from "../../models/product-sector/insert.ts";
 import { publishMessage } from "./publish-message.ts";
 import { type IProcessBulkOperation } from "./types/IProcess-bulk-operation.ts";
@@ -18,11 +19,18 @@ export class ProcessBulkProdSector  implements IProcessBulkOperation {
              const db = `\`${database}\``;
              const insertProductSector = new InsertProductSector();
              const result = await insertProductSector.bulkInsertOrUpdate(db, data);
-
-            //  for(const i of data ){
-            //     await publishMessage(database, 'produtosetor.atualizado', i );
-            //    }
-
         return result.affectedRows;    
     }
    }
+
+   export class ProcessBulkloteSerie  implements IProcessBulkOperation {
+    async execute(database: string, data: any): Promise<number> {
+             const db = `\`${database}\``;
+             const insertLotesSeries = new InsertLotesSeries();
+            const result = await insertLotesSeries.bulkInsertOrUpdate(db, data);
+            return result.affectedRows;    
+       
+        }
+   }
+
+
