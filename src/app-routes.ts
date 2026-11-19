@@ -94,6 +94,8 @@ server.register(fastifySwagger, {
    exposedHeaders:'*'
 
   })
+
+ 
 server.register(scalarAPIReference, { routePrefix: '/docs' })
 
 server.setSerializerCompiler(serializerCompiler);

@@ -5,7 +5,13 @@ import { SelectSector } from '../../models/sector/select.ts';
 import { InsertSector } from '../../models/sector/insert.ts';
 import { UpdateSector } from '../../models/sector/update.ts';
 import { DateService } from '../../utils/dateService.ts';
-import { publishMessage } from '../../services/broker/publish-message.ts';
+import { publishInternalMessage, publishMessage } from '../../services/broker/publish-message.ts';
+
+const sectorBulkBodySchema = z.array(z.object({
+    codigo: z.number().optional(),
+    id: z.string(),
+    descricao: z.string()
+}));
 
 const sectorsRoute: FastifyPluginAsyncZod = async (server) => {
     server.get('/bulk/setores', {
@@ -140,6 +146,7 @@ const sectorsRoute: FastifyPluginAsyncZod = async (server) => {
 
     server.post('/setores', {
         schema: {
+            description: "Cadastra/atualiza setor. Se informado o código e o registro já existir, o mesmo será atualizado com os novos dados.",
             tags: ['setores'],
             headers: z.object({
                 token: z.string(),
@@ -178,22 +185,119 @@ const sectorsRoute: FastifyPluginAsyncZod = async (server) => {
         const source = request.headers.source as string || 'api_internal';
         const { id, descricao, codigo } = request.body;
 
-        const data_cadastro = dateService.obterDataAtual();
         const data_recadastro = dateService.obterDataHoraAtual();
 
         const insert = new InsertSector();
         const select = new SelectSector();
-        const verify = await select.findByParams(dbName, { id: id})
-        if( verify.length > 0 ) return reply.status(400).send({ success: false, message:`Sector ID ${id} already exists.`})
+
+        const existingByCode = codigo !== undefined ? await select.findByParams(dbName, { codigo }) : [];
+        const isUpdate = existingByCode.length > 0;
+
+        const sectorsById = await select.findByParams(dbName, { id });
+        const idOwner = sectorsById.find((sector) => sector.id === id);
+
+        if (idOwner && (codigo === undefined || Number(idOwner.codigo) !== Number(codigo))) {
+            return reply.status(400).send({ success: false, message: `Sector ID ${id} already exists.` });
+        }
+
+        const data_cadastro = isUpdate ? existingByCode[0].data_cadastro : dateService.obterDataAtual();
 
         try {
-            const result = await insert.insert(dbName, { id, descricao, data_cadastro, data_recadastro, codigo, ativo: 'S' });
-            const item = { codigo: result.insertId, id, descricao, ativo: 'S', data_cadastro, data_recadastro };
-            await publishMessage(empresa, 'setor.inserido', item, source);
+            const result = await insert.insertOrUpdate(dbName, {
+                ...(codigo !== undefined ? { codigo } : {}),
+                id,
+                descricao,
+                ativo: 'S',
+                data_cadastro,
+                data_recadastro
+            });
+            const item = {
+                codigo: codigo !== undefined ? codigo : result.insertId,
+                id,
+                descricao,
+                ativo: 'S',
+                data_cadastro,
+                data_recadastro
+            };
+            await publishMessage(empresa, isUpdate ? 'setor.atualizado' : 'setor.inserido', item, source);
             return reply.status(201).send(item);
         } catch (e) {
             console.error('Error inserting sector:', e);
             return reply.status(400).send({ success: false, message: 'Error inserting sector' });
+        }
+    });
+
+    server.post('/bulk/setores', {
+        schema: {
+            description: "Cadastra/atualiza setores em lote. Se informado o código e o registro já existir, o mesmo será atualizado com os novos dados. Limite maximo por lote: 5000",
+            tags: ['setores'],
+            headers: z.object({
+                token: z.string(),
+                source: z.string().optional()
+            }),
+            body: sectorBulkBodySchema,
+            response: {
+                202: z.object({
+                    success: z.boolean(),
+                    message: z.string(),
+                    lote_id: z.string()
+                }),
+                400: z.object({
+                    success: z.boolean(),
+                    message: z.string()
+                }),
+                500: z.object({
+                    success: z.boolean(),
+                    message: z.string()
+                })
+            }
+        }
+    }, async (request, reply) => {
+        const decodedToken = DecodedToken(String(request.headers.token));
+
+        if (!decodedToken.payload?.cnpj) {
+            return reply.status(400).send({ success: false, message: 'Company identifier not provided' });
+        }
+
+        const empresa = decodedToken.payload.cnpj.replace(/\D/g, '');
+        const dbName = `\`${empresa}\``;
+        const source = request.headers.source as string || 'api_internal';
+        const dados = request.body;
+
+        if (!Array.isArray(dados) || dados.length === 0) {
+            return reply.status(400).send({ success: false, message: 'Array of items is required' });
+        }
+
+        if (dados.length > 5000) {
+            return reply.status(400).send({ success: false, message: 'record limit per batch reached' });
+        }
+
+        try {
+            const loteId = crypto.randomUUID();
+            const QUEUE_CHUNK_SIZE = 5000;
+
+            for (let i = 0; i < dados.length; i += QUEUE_CHUNK_SIZE) {
+                const chunk = dados.slice(i, i + QUEUE_CHUNK_SIZE);
+
+                const payloadFila = {
+                    loteId,
+                    dbName,
+                    empresa,
+                    source,
+                    itens: chunk
+                };
+
+                await publishInternalMessage(empresa, `setores.processar.${empresa}`, payloadFila);
+            }
+
+            return reply.status(202).send({
+                success: true,
+                message: 'O processamento do lote foi iniciado em segundo plano.',
+                lote_id: loteId
+            });
+        } catch (e) {
+            console.error('Error triggering background job:', e);
+            return reply.status(500).send({ success: false, message: 'Internal server error' });
         }
     });
 

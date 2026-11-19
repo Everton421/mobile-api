@@ -1,5 +1,6 @@
 export type LotesSeriesType = {
     codigo: number;
+    id: string | null;
     produto: number;
     lote: string | null;
     serie: string | null;
@@ -9,6 +10,7 @@ export type LotesSeriesType = {
 
 export type LotesSeriesInput = {
     codigo?: number;
+    id?: string | null;
     produto: number;
     lote?: string | null;
     serie?: string | null;

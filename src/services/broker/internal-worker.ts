@@ -38,7 +38,7 @@ export async function startTenenatWorker() {
 
                   const resultInsert = await service.execute(tenantId,content.data.itens )
 
-                if(resultInsert) channel!.ack(msg);
+                if(resultInsert !== undefined) channel!.ack(msg);
 
                 console.log(`[Worker] Lote do módulo [${modulo}] para o Tenant [${tenantId}] processado com sucesso!`);
 

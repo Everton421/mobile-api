@@ -9,6 +9,10 @@ type resultLoteSerieSearch = {
     serie:string | null
     lote: string | null
 }
+
+type resultLoteSerieChanged = resultLoteSerieSearch & {
+    data_recadastro: string;
+}
 export class SelectLoteSerieSetor {
     async findAll(dbName: string): Promise<LoteSerieSetorType[]> {
         const sql = `SELECT * FROM ${dbName}.lote_serie_setor`;
@@ -95,5 +99,37 @@ export class SelectLoteSerieSetor {
 
         const [result] = await conn.query(sql, values);
         return result as resultLoteSerieSearch[];
+    }
+
+    async findChangedAfter(
+        dbName: string,
+        dataRecadastro?: string,
+        limit: number = 1000
+    ): Promise<resultLoteSerieChanged[]> {
+        const conditions: string[] = [];
+        const values: (number | string)[] = [];
+
+        if (dataRecadastro) {
+            conditions.push('lss.data_recadastro > ?');
+            values.push(dataRecadastro);
+        }
+
+        const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+        const sql = `SELECT
+                            lss.setor,
+                            lss.produto,
+                            lss.lote_serie,
+                            lss.estoque,
+                            ls.lote,
+                            ls.serie,
+                            DATE_FORMAT(lss.data_recadastro, '%Y-%m-%d %H:%i:%s') AS data_recadastro
+                     FROM ${dbName}.lote_serie_setor lss
+                     JOIN ${dbName}.lotes_series ls on ls.codigo = lss.lote_serie
+                     ${whereClause}
+                     ORDER BY lss.data_recadastro ASC, lss.setor ASC, lss.lote_serie ASC
+                     LIMIT ?`;
+        values.push(limit);
+        const [result] = await conn.query(sql, values);
+        return result as resultLoteSerieChanged[];
     }
 }

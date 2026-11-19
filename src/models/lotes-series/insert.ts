@@ -1,11 +1,12 @@
+import { type ResultSetHeader } from "mysql2";
 import { conn } from "../../database/databaseConfig.ts";
 import { DateService } from "../../utils/dateService.ts";
 import { type LotesSeriesInput } from "./types/lotes-series-type.ts";
 
 export class InsertLotesSeries {
     async insert(dbName: string, data: LotesSeriesInput): Promise<{ insertId: number }> {
-        const columns = ['produto', 'lote', 'serie', 'data_cadastro', 'data_recadastro'];
-        const values = [data.produto, data.lote ?? null, data.serie ?? null, data.data_cadastro, data.data_recadastro];
+        const columns = ['id', 'produto', 'lote', 'serie', 'data_cadastro', 'data_recadastro'];
+        const values = [data.id ?? null, data.produto, data.lote ?? null, data.serie ?? null, data.data_cadastro, data.data_recadastro];
 
         if (data.codigo != null) {
             columns.unshift('codigo');
@@ -29,21 +30,64 @@ export class InsertLotesSeries {
                 for(const i of data){
                     const data_recadastro = i.data_recadastro ? i.data_recadastro :  dateService.obterDataHoraAtual();
                     const data_cadastro =  i.data_cadastro ? i.data_cadastro :  dateService.obterDataAtual();   
-                    params.push(" ( ?, ?, ?, ?, ?, ? ) ")
-                    values.push(i.codigo, i.produto, i.lote ?? null, i.serie ?? null, data_cadastro, data_recadastro)
+                    params.push(" ( ?, ?, ?, ?, ?, ?, ? ) ")
+                    values.push(i.codigo, i.id ?? null, i.produto, i.lote ?? null, i.serie ?? null, data_cadastro, data_recadastro)
                 }
             }
             const sql = `INSERT INTO ${dbName}.lotes_series 
-            (codigo, produto ,  lote ,  serie ,  data_cadastro , data_recadastro )
+            (codigo, id, produto ,  lote ,  serie ,  data_cadastro , data_recadastro )
             VALUES ${params.join(', ')}
                 ON DUPLICATE KEY UPDATE
+                id = VALUES(id),
                 produto = VALUES(produto),
                 lote = VALUES(lote),
                 serie = VALUES(serie),
                 data_recadastro=VALUES(data_recadastro)
             `;
-        const [result] = await conn.query(sql, values);
+           const [result] = await conn.query(sql, values);
             return { affectedRows: (result as any).affectedRows };
-
     }
+    
+
+    async insertOrUpdate(dbName: string,data: LotesSeriesInput){
+        const dateService = new DateService();
+
+            const fields = [];
+            const placeholders = [];
+            const values = [];
+
+                    if(data.codigo){
+                        fields.push('codigo');
+                        placeholders.push('?')
+                        values.push(data.codigo);
+                    }
+
+                    fields.push('id' , 'produto' ,  'lote' ,  'serie' ,  'data_cadastro' , 'data_recadastro');
+                    placeholders.push(" ? " , " ? " , "?", "?", "?", "?"  );
+
+                    const data_recadastro = data.data_recadastro ? data.data_recadastro :  dateService.obterDataHoraAtual();
+                    const data_cadastro =  data.data_cadastro ? data.data_cadastro :  dateService.obterDataAtual();   
+                    
+                    values.push( data.id ?? null, data.produto, data.lote ?? null, data.serie ?? null, data_cadastro, data_recadastro)
+ 
+
+        const sql = `INSERT INTO ${dbName}.lotes_series 
+           (${fields.join(' , ')})
+            VALUES (${placeholders.join(', ')})
+                ON DUPLICATE KEY UPDATE
+                id = VALUES(id),
+                produto = VALUES(produto),
+                lote = VALUES(lote),
+                serie = VALUES(serie),
+                data_recadastro=VALUES(data_recadastro)
+            `;
+            
+        const [result] = await conn.query(sql, values);
+           
+        return result as ResultSetHeader
+                 
+    }
+
+
+
 }

@@ -6,9 +6,11 @@ import { InsertLotesSeries } from '../../models/lotes-series/insert.ts';
 import { UpdateLotesSeries } from '../../models/lotes-series/update.ts';
 import { DateService } from '../../utils/dateService.ts';
 import { publishInternalMessage, publishMessage } from '../../services/broker/publish-message.ts';
+import { type LotesSeriesInput } from '../../models/lotes-series/types/lotes-series-type.ts';
 
 const lotesSeriesResponseSchema = z.object({
-    codigo: z.coerce.number(),
+    codigo: z.coerce.number().optional(),
+    id: z.string().nullable().optional(),
     produto: z.coerce.number(),
     lote: z.coerce.string().nullable(),
     serie: z.coerce.string().nullable(),
@@ -18,6 +20,7 @@ const lotesSeriesResponseSchema = z.object({
 
 const lotesSeriesBodySchema = z.object({
     codigo: z.number().optional(),
+    id: z.string().optional().nullable().describe("Id"),
     produto: z.number(),
     lote: z.string().optional().nullable(),
     serie: z.string().optional().nullable()
@@ -25,13 +28,15 @@ const lotesSeriesBodySchema = z.object({
 
 const lotesSeriesUpdateBodySchema = z.object({
     codigo: z.number(),
+    id: z.string().optional().nullable(),
     produto: z.number().optional(),
     lote: z.string().optional().nullable(),
     serie: z.string().optional().nullable()
 });
 
 const lotesSeriesBulkBodySchema = z.array(z.object({
-    codigo: z.number().optional(),
+    codigo: z.number().optional().describe('Código único do registro'),
+    id: z.string().optional().nullable(),
     produto: z.number(),
     lote: z.string().optional().nullable(),
     serie: z.string().optional().nullable()
@@ -46,6 +51,7 @@ const lotesSeriesRoute: FastifyPluginAsyncZod = async (server) => {
             }),
             querystring: z.object({
                 codigo: z.coerce.number().optional(),
+                id: z.string().optional(),
                 produto: z.coerce.number().optional(),
                 serie: z.string().optional(),
                 lote: z.string().optional()
@@ -76,6 +82,7 @@ const lotesSeriesRoute: FastifyPluginAsyncZod = async (server) => {
 
     server.post('/lotes-series', {
         schema: {
+            description: "Cadastra/atualiza lote serie. Se informado o código e o registro já existir, o mesmo será atualizado com os novos dados.",
             tags: ['lotes-series'],
             headers: z.object({
                 token: z.string(),
@@ -99,31 +106,41 @@ const lotesSeriesRoute: FastifyPluginAsyncZod = async (server) => {
         const empresa = decodedToken.payload.cnpj.replace(/\D/g, '');
         const dbName = `\`${empresa}\``;
         const source = request.headers.source as string || 'api_internal';
-        const { codigo, produto, lote, serie } = request.body;
-
+        const { codigo, id, produto, lote, serie } = request.body;
         const data_cadastro = dateService.obterDataAtual();
         const data_recadastro = dateService.obterDataHoraAtual();
 
         try {
             const insert = new InsertLotesSeries();
-            const result = await insert.insert(dbName, {
+
+          const result =  await insert.insertOrUpdate(dbName,
+                 {
                 ...(codigo !== undefined ? { codigo } : {}),
+                id,
                 produto,
                 lote,
                 serie,
                 data_cadastro,
                 data_recadastro
-            });
-            const item = {
-                codigo: result.insertId,
+            }
+            )
+             let item: LotesSeriesInput = {
+                id: id ?? null,
                 produto,
                 lote: lote ?? null,
                 serie: serie ?? null,
                 data_cadastro,
                 data_recadastro
             };
-            await publishMessage(empresa, 'lotesserie.inserido', item, source);
-            return reply.status(201).send(item);
+                if(result.insertId){
+                    item.codigo =  result.insertId;
+                }
+              
+       
+              await publishMessage(empresa, 'lotesserie.inserido', item, source);
+            return reply.status(201).send(item as any);
+      
+
         } catch (e) {
             console.error('Error inserting lotes-series:', e);
             return reply.status(400).send({ success: false, message: 'Error inserting lotes-series' });
@@ -155,7 +172,7 @@ const lotesSeriesRoute: FastifyPluginAsyncZod = async (server) => {
         const empresa = decodedToken.payload.cnpj.replace(/\D/g, '');
         const dbName = `\`${empresa}\``;
         const source = request.headers.source as string || 'api_internal';
-        const { codigo, produto, lote, serie } = request.body;
+        const { codigo, id, produto, lote, serie } = request.body;
 
         try {
             const select = new SelectLotesSeries();
@@ -167,6 +184,7 @@ const lotesSeriesRoute: FastifyPluginAsyncZod = async (server) => {
             const update = new UpdateLotesSeries();
             const data_recadastro = dateService.obterDataHoraAtual();
             const updateData: any = { codigo, data_recadastro };
+            if (id !== undefined) updateData.id = id;
             if (produto !== undefined) updateData.produto = produto;
             if (lote !== undefined) updateData.lote = lote;
             if (serie !== undefined) updateData.serie = serie;
@@ -181,8 +199,9 @@ const lotesSeriesRoute: FastifyPluginAsyncZod = async (server) => {
             return reply.status(400).send({ success: false, message: 'Error updating lotes-series' });
         }
     });
-server.post('/bulk/lotes-series', {
+    server.post('/async/bulk/lotes-series', {
         schema: {
+            description: "Cadastra/atualiza lote serie em lote. Se informado o código e o registro já existir, o mesmo será atualizado com os novos dados. Limite maximo por lote: 5000 ",
             tags: ['lotes-series'],
             headers: z.object({
                 token: z.string(),
@@ -219,9 +238,9 @@ server.post('/bulk/lotes-series', {
         if (!Array.isArray(dados) || dados.length === 0) {
             return reply.status(400).send({ success: false, message: 'Array of items is required' });
         }
-
-        const itens: { codigo: number; acao: string }[] = [];
-
+            if ( dados.length > 5000) {
+            return reply.status(400).send({ success: false, message: 'record limit per batch reached' });
+        }
         try {
                 const loteId = crypto.randomUUID(); 
                              const QUEUE_CHUNK_SIZE = 5000;  
@@ -250,187 +269,79 @@ server.post('/bulk/lotes-series', {
                  console.error('Error triggering background job:', e);
                 return reply.status(500).send({ success: false, message: 'Internal server error' });
         }
-        // try {
-        //     const insertModel = new InsertLotesSeries();
-        //     const updateModel = new UpdateLotesSeries();
-        //     const select = new SelectLotesSeries();
-
-        //     for (const item of dados) {
-        //         if (item.codigo) {
-        //             const existing = await select.findByCode(dbName, item.codigo);
-        //             if (existing.length > 0) {
-        //                 const data_recadastro = dateService.obterDataHoraAtual();
-        //                 const updateData: any = { codigo: item.codigo, data_recadastro };
-        //                 if (item.produto !== undefined) updateData.produto = item.produto;
-        //                 if (item.lote !== undefined) updateData.lote = item.lote;
-        //                 if (item.serie !== undefined) updateData.serie = item.serie;
-
-        //                 await updateModel.update(dbName, updateData);
-
-        //                 const [updated] = await select.findByCode(dbName, item.codigo);
-        //                 await publishMessage(empresa, 'lotesseriel.atualizado', updated, source);
-        //                 itens.push({ codigo: item.codigo, acao: 'atualizado' });
-        //             } else {
-        //                 const data_cadastro = dateService.obterDataAtual();
-        //                 const data_recadastro = dateService.obterDataHoraAtual();
-        //                 const result = await insertModel.insert(dbName, {
-        //                     codigo: item.codigo,
-        //                     produto: item.produto,
-        //                     lote: item.lote,
-        //                     serie: item.serie,
-        //                     data_cadastro,
-        //                     data_recadastro
-        //                 });
-        //                 const inserted = {
-        //                     codigo: result.insertId,
-        //                     produto: item.produto,
-        //                     lote: item.lote ?? null,
-        //                     serie: item.serie ?? null,
-        //                     data_cadastro,
-        //                     data_recadastro
-        //                 };
-        //                 await publishMessage(empresa, 'lotesserie.inserido', inserted, source);
-        //                 itens.push({ codigo: result.insertId, acao: 'inserido' });
-        //             }
-        //         } else {
-        //             const data_cadastro = dateService.obterDataAtual();
-        //             const data_recadastro = dateService.obterDataHoraAtual();
-        //             const result = await insertModel.insert(dbName, {
-        //                 produto: item.produto,
-        //                 lote: item.lote,
-        //                 serie: item.serie,
-        //                 data_cadastro,
-        //                 data_recadastro
-        //             });
-        //             const inserted = {
-        //                 codigo: result.insertId,
-        //                 produto: item.produto,
-        //                 lote: item.lote ?? null,
-        //                 serie: item.serie ?? null,
-        //                 data_cadastro,
-        //                 data_recadastro
-        //             };
-        //             await publishMessage(empresa, 'lotesserie.inserido', inserted, source);
-        //             itens.push({ codigo: result.insertId, acao: 'inserido' });
-        //         }
-        //     }
-
-        //     return reply.status(200).send({ success: true, itens });
-        // } catch (e) {
-        //     console.error('Error processing bulk lotes-series:', e);
-        //     return reply.status(400).send({ success: false, message: 'Error processing bulk lotes-series' });
-        // }
     });
-    // server.post('/bulk/lotes-series', {
-    //     schema: {
-    //         tags: ['lotes-series'],
-    //         headers: z.object({
-    //             token: z.string(),
-    //             source: z.string().optional()
-    //         }),
-    //         body: lotesSeriesBulkBodySchema,
-    //         response: {
-    //             200: z.object({
-    //                 success: z.boolean(),
-    //                 itens: z.array(z.object({
-    //                     codigo: z.number(),
-    //                     acao: z.string()
-    //                 }))
-    //             }),
-    //             400: z.object({
-    //                 success: z.boolean(),
-    //                 message: z.string()
-    //             })
-    //         }
-    //     }
-    // }, async (request, reply) => {
-    //     const dateService = new DateService();
-    //     const decodedToken = DecodedToken(String(request.headers.token));
-    //     if (!decodedToken.payload?.cnpj) {
-    //         return reply.status(400).send({ success: false, message: 'Company identifier not provided' });
-    //     }
-    //     const empresa = decodedToken.payload.cnpj.replace(/\D/g, '');
-    //     const dbName = `\`${empresa}\``;
-    //     const source = request.headers.source as string || 'api_internal';
-    //     const dados = request.body;
+    server.post('/bulk/lotes-series', {
+        schema: {
+            description: "Cadastra/atualiza lote serie em lote. Se informado o código e o registro já existir, o mesmo será atualizado com os novos dados. Limite maximo por lote: 5000 ",
+            tags: ['lotes-series'],
+            headers: z.object({
+                token: z.string(),
+                source: z.string().optional()
+            }),
+            body: lotesSeriesBulkBodySchema,
+            response: {
+                200: z.array(lotesSeriesResponseSchema),
+                400: z.object({
+                    success: z.boolean(),
+                    message: z.string()
+                }),
+                500: z.object({
+                   success: z.boolean(),
+                   message: z.string()
+               })
+            }
+        }
+    }, async (request, reply) => {
+        const dateService = new DateService();
+        const decodedToken = DecodedToken(String(request.headers.token));
+        if (!decodedToken.payload?.cnpj) {
+            return reply.status(400).send({ success: false, message: 'Company identifier not provided' });
+        }
+        const empresa = decodedToken.payload.cnpj.replace(/\D/g, '');
+        const dbName = `\`${empresa}\``;
+        const source = request.headers.source as string || 'api_internal';
+        const dados = request.body;
 
-    //     if (!Array.isArray(dados) || dados.length === 0) {
-    //         return reply.status(400).send({ success: false, message: 'Array of items is required' });
-    //     }
+            if (!Array.isArray(dados) || dados.length === 0) {
+                return reply.status(400).send({ success: false, message: 'Array of items is required' });
+            }
+            if ( dados.length > 5000) {
+                return reply.status(400).send({ success: false, message: 'record limit per batch reached' });
+            }
 
-    //     const itens: { codigo: number; acao: string }[] = [];
+            const insert = new InsertLotesSeries();
+            const select = new SelectLotesSeries();
 
-    //     try {
-    //         const insertModel = new InsertLotesSeries();
-    //         const updateModel = new UpdateLotesSeries();
-    //         const select = new SelectLotesSeries();
+        try {
+                                const dataToInsert:LotesSeriesInput[] =[];
 
-    //         for (const item of dados) {
-    //             if (item.codigo) {
-    //                 const existing = await select.findByCode(dbName, item.codigo);
-    //                 if (existing.length > 0) {
-    //                     const data_recadastro = dateService.obterDataHoraAtual();
-    //                     const updateData: any = { codigo: item.codigo, data_recadastro };
-    //                     if (item.produto !== undefined) updateData.produto = item.produto;
-    //                     if (item.lote !== undefined) updateData.lote = item.lote;
-    //                     if (item.serie !== undefined) updateData.serie = item.serie;
+                                for(const loteSerie of dados){
+                                    
+                                let item:LotesSeriesInput = {
+                                        serie: loteSerie.serie,
+                                        produto: loteSerie.produto,
+                                        data_cadastro: dateService.obterDataAtual(),
+                                        data_recadastro: dateService.obterDataHoraAtual(),
+                                    }
+                                    if( loteSerie.id ) item.id = loteSerie.id ;
+                                    if(loteSerie.codigo ) item.codigo = loteSerie.codigo; 
 
-    //                     await updateModel.update(dbName, updateData);
+                                    dataToInsert.push(item )
+                                }
+                                // insere os dados em lote.
+                               await insert.bulkInsertOrUpdate(dbName,dataToInsert  )   
 
-    //                     const [updated] = await select.findByCode(dbName, item.codigo);
-    //                     await publishMessage(empresa, 'lotesseriel.atualizado', updated, source);
-    //                     itens.push({ codigo: item.codigo, acao: 'atualizado' });
-    //                 } else {
-    //                     const data_cadastro = dateService.obterDataAtual();
-    //                     const data_recadastro = dateService.obterDataHoraAtual();
-    //                     const result = await insertModel.insert(dbName, {
-    //                         codigo: item.codigo,
-    //                         produto: item.produto,
-    //                         lote: item.lote,
-    //                         serie: item.serie,
-    //                         data_cadastro,
-    //                         data_recadastro
-    //                     });
-    //                     const inserted = {
-    //                         codigo: result.insertId,
-    //                         produto: item.produto,
-    //                         lote: item.lote ?? null,
-    //                         serie: item.serie ?? null,
-    //                         data_cadastro,
-    //                         data_recadastro
-    //                     };
-    //                     await publishMessage(empresa, 'lotesserie.inserido', inserted, source);
-    //                     itens.push({ codigo: result.insertId, acao: 'inserido' });
-    //                 }
-    //             } else {
-    //                 const data_cadastro = dateService.obterDataAtual();
-    //                 const data_recadastro = dateService.obterDataHoraAtual();
-    //                 const result = await insertModel.insert(dbName, {
-    //                     produto: item.produto,
-    //                     lote: item.lote,
-    //                     serie: item.serie,
-    //                     data_cadastro,
-    //                     data_recadastro
-    //                 });
-    //                 const inserted = {
-    //                     codigo: result.insertId,
-    //                     produto: item.produto,
-    //                     lote: item.lote ?? null,
-    //                     serie: item.serie ?? null,
-    //                     data_cadastro,
-    //                     data_recadastro
-    //                 };
-    //                 await publishMessage(empresa, 'lotesserie.inserido', inserted, source);
-    //                 itens.push({ codigo: result.insertId, acao: 'inserido' });
-    //             }
-    //         }
+                               const seriesInserted =  dataToInsert.map( ( s ) => s.serie! );
 
-    //         return reply.status(200).send({ success: true, itens });
-    //     } catch (e) {
-    //         console.error('Error processing bulk lotes-series:', e);
-    //         return reply.status(400).send({ success: false, message: 'Error processing bulk lotes-series' });
-    //     }
-    // });
+                                const dataToResult   = await select.findByArraySeriesIn(dbName,  seriesInserted )
+
+                             return reply.status(200).send( dataToResult);
+        } catch (e) {
+                 console.error('Error triggering background job:', e);
+                return reply.status(500).send({ success: false, message: 'Internal server error' });
+        }
+    });
+
 };
 
 export { lotesSeriesRoute };

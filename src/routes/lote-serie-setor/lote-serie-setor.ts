@@ -14,6 +14,10 @@ const loteSerieSetorResponseSchema = z.object({
     serie:z.string().nullable(),
 });
 
+const loteSerieSetorChangedResponseSchema = loteSerieSetorResponseSchema.extend({
+    data_recadastro: z.string()
+});
+
 const loteSerieSetorBodySchema = z.object({
     setor: z.number(),
     produto: z.number(),
@@ -72,6 +76,48 @@ const loteSerieSetorRoute: FastifyPluginAsyncZod = async (server) => {
         }
     });
 
+    server.get('/bulk/lote-serie-setor', {
+        schema: {
+            description:"Consulta registros alterados após a data informada.",
+            tags: ['lote-serie-setor'],
+            headers: z.object({
+                token: z.string()
+            }),
+            querystring: z.object({
+                data_recadastro: z.string().regex(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/).optional().describe("Consulta registros alterados após a data informada."),
+                limit: z.coerce.number().int().min(1).max(5000).default(1000)
+            }),
+            response: {
+                200: z.array(loteSerieSetorChangedResponseSchema),
+                400: z.object({
+                    success: z.boolean(),
+                    message: z.string()
+                }),
+                500: z.object({
+                    success: z.boolean(),
+                    message: z.string()
+                })
+            }
+        }
+    }, async (request, reply) => {
+        const decodedToken = DecodedToken(String(request.headers.token));
+        if (!decodedToken.payload?.cnpj) {
+            return reply.status(400).send({ success: false, message: 'Company identifier not provided' });
+        }
+        const empresa = decodedToken.payload.cnpj.replace(/\D/g, '');
+        const dbName = `\`${empresa}\``;
+        const { data_recadastro, limit } = request.query;
+
+        try {
+            const select = new SelectLoteSerieSetor();
+            const result = await select.findChangedAfter(dbName, data_recadastro, limit);
+            return reply.status(200).send(result);
+        } catch (e) {
+            console.error('Error fetching changed lote-serie-setor:', e);
+            return reply.status(500).send({ success: false, message: 'Error fetching changed lote-serie-setor' });
+        }
+    });
+
     server.put('/lote-serie-setor', {
         schema: {
             tags: ['lote-serie-setor'],
@@ -116,6 +162,8 @@ const loteSerieSetorRoute: FastifyPluginAsyncZod = async (server) => {
 
        server.put('/bulk/lote-serie-setor', {
         schema: {
+            description: "Cadastra/atualiza lote-serie-setor em lote. Maximo de registros permitidos por lote : 5000",
+
             tags: ['lote-serie-setor'],
             headers: z.object({
                 token: z.string(),
@@ -150,6 +198,10 @@ const loteSerieSetorRoute: FastifyPluginAsyncZod = async (server) => {
 
         if (!Array.isArray(dados) || dados.length === 0) {
             return reply.status(400).send({ success: false, message: 'Array of items is required' });
+        }
+
+          if ( dados.length > 5000) {
+            return reply.status(400).send({ success: false, message: 'record limit per batch reached' });
         }
         try {
                 const loteId = crypto.randomUUID(); 

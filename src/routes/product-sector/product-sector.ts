@@ -265,6 +265,8 @@ const productSectorRoute: FastifyPluginAsyncZod = async (server) => {
 
        server.put('/bulk/produtos-setor', {
         schema: {
+            description:"cadastra/atualiza produtos no setor em lote.\n Maximo de registros permitidos por lote : 5000.",
+
             tags: ['produtos-setor'],
             headers: z.object({
                 token: z.string(),
@@ -307,6 +309,10 @@ const productSectorRoute: FastifyPluginAsyncZod = async (server) => {
 
         if (!Array.isArray(dados) || dados.length === 0) {
             return reply.status(400).send({ success: false, message: 'Array of items is required' });
+        }
+
+          if ( dados.length > 5000) {
+            return reply.status(400).send({ success: false, message: 'record limit per batch reached' });
         }
 
         const updatedItens: { produto: number }[] = [];

@@ -38,11 +38,21 @@ export class SelectLotesSeries {
         return result as LotesSeriesType[];
     }
 
+    async findByArraySeriesIn( dbName: string, series:string[]){
+        const sql = `SELECT *,
+                    DATE_FORMAT(data_cadastro, '%Y-%m-%d') AS data_cadastro,
+                    DATE_FORMAT(data_recadastro, '%Y-%m-%d %H:%i:%s') AS data_recadastro
+                FROM ${dbName}.lotes_series WHERE serie in ( ? )`;
+                const [result] = await conn.query(sql, [series]);
+                return result as LotesSeriesType[];
+
+    }
 
       async findByFilters(
             dbName: string,
             filters: {
                 codigo?:number
+                id?:string
                 produto?: number;
                 serie?:string;
                 lote?:string;
@@ -54,6 +64,11 @@ export class SelectLotesSeries {
            if(filters.codigo){
                 conditions.push(' codigo = ? ');
                 values.push(filters.codigo);
+            }
+
+            if(filters.id !== undefined){
+                conditions.push(' id = ? ');
+                values.push(filters.id);
             }
     
             if(filters.serie){

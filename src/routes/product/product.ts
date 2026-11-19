@@ -5,7 +5,7 @@ import { SelectProduct } from '../../models/product/select.ts';
 import { InsertProduct } from '../../models/product/insert.ts';
 import { UpdateProduct } from '../../models/product/update.ts';
 import { DateService } from '../../utils/dateService.ts';
-import { publishMessage } from '../../services/broker/publish-message.ts';
+import { publishInternalMessage, publishMessage } from '../../services/broker/publish-message.ts';
 import { type ProductType } from '../../models/product/types/product-type.ts';
 import { SelectPhoto } from '../../models/photo/select.ts';
 import { InsertPhoto } from '../../models/photo/insert.ts';
@@ -58,7 +58,34 @@ const productResponseSchema = z.object({
 
 });
 
- 
+   const productBulkInsert =    z.array( 
+             z.object({
+                codigo: z.number().optional(),
+                id: z.coerce.string(),
+                estoque: z.coerce.number().default(0),
+                preco: z.coerce.string().default('0'),
+                unidade_medida: z.string().default('und'),
+                grupo: z.number(),
+                origem: z.union([z.string(), z.number()]).default('0'),
+                descricao: z.string(),
+                num_fabricante: z.string().default(''),
+                num_original: z.string().default(''),
+                sku: z.string().default(''),
+                marca: z.number(),
+                ativo: z.enum(['S', 'N']).default('S'),
+                class_fiscal: z.string().default(''),
+                cst: z.string().default(''),
+                caracteristica: z.number().default(0),
+                controle_lote_serie: z.enum(['S', 'N']).default('N'),
+                observacoes1: z.string().default(''),
+                observacoes2: z.string().default(''),
+                observacoes3: z.string().default(''),
+                tipo: z.number().default(0),
+                fotos: z.array(photoInputSchema) 
+            })
+        )
+
+export type typeProductBulkInsert = z.infer<typeof productBulkInsert>;
 
 const productsRoute: FastifyPluginAsyncZod = async (server) => {
     server.get('/bulk/produtos', {
@@ -259,6 +286,7 @@ const productsRoute: FastifyPluginAsyncZod = async (server) => {
 
     server.post('/produtos', {
         schema: {
+            description: "Cadastra/atualiza produto. Se informado o código e o registro já existir, o mesmo será atualizado com os novos dados.",
             tags: ['produtos'],
             headers: z.object({
                 token: z.string(),
@@ -314,17 +342,15 @@ const productsRoute: FastifyPluginAsyncZod = async (server) => {
         const { id, codigo } = request.body
         const insert = new InsertProduct();
         const select = new SelectProduct();
-        
-        if( codigo != undefined || id != undefined){
-      
-            const verifyExistsProduct = await select.searchProductByUniqueParams( dbName, { id: id, code: codigo});
-            if(verifyExistsProduct.length > 0 ){
-                const  codigoVerifiedProduct  = verifyExistsProduct[0].codigo;
-                const  idVerifiedProduct  = verifyExistsProduct[0].id;
-                if(codigo == codigoVerifiedProduct) return reply.status(400).send({ success: false, message: `Product Code: ${codigo} already exists.`})
-                if(id == idVerifiedProduct) return reply.status(400).send({ success: false, message: `Product ID: ${id} already exists.`})
-            }
-      
+
+        const existingByCode = codigo !== undefined ? await select.findByCode(dbName, codigo) : [];
+        const isUpdate = existingByCode.length > 0;
+
+        const productsById = await select.searchProductByUniqueParams(dbName, { id });
+        const idOwner = productsById.find((product) => product.id === id);
+
+        if (idOwner && (codigo === undefined || Number(idOwner.codigo) !== Number(codigo))) {
+            return reply.status(400).send({ success: false, message: `Product ID: ${id} already exists.` });
         }
 
         try {
@@ -332,17 +358,24 @@ const productsRoute: FastifyPluginAsyncZod = async (server) => {
             const productData: ProductType = {
                 ...rest,
                 origem: String(origem),
-                data_cadastro,
+                data_cadastro: isUpdate ? existingByCode[0].data_cadastro : data_cadastro,
                 data_recadastro
             };
 
-            const result = await insert.insert(dbName, productData);
+            const result = await insert.insertOrUpdate(dbName, productData);
+            const productCode = codigo !== undefined ? codigo : result.insertId;
+
             const insertPhoto = new InsertPhoto();
+            const updatePhoto = new UpdatePhoto();
             const fotosPost: PhotoType[] = [];
+
+            if (isUpdate) {
+                await updatePhoto.deleteByProduct(dbName, productCode);
+            }
 
             for (const foto of fotos) {
                 const photoData: Omit<PhotoType, 'codigo'> = {
-                    produto: result.insertId,
+                    produto: productCode,
                     sequencia: foto.sequencia,
                     descricao: foto.descricao,
                     link: foto.link,
@@ -354,9 +387,9 @@ const productsRoute: FastifyPluginAsyncZod = async (server) => {
                 fotosPost.push({ ...photoData, codigo: photoResult.insertId });
             }
 
-            const item = { ...productData, codigo: result.insertId , fotos: fotosPost};
+            const item = { ...productData, codigo: productCode, fotos: fotosPost };
 
-            await publishMessage(empresa, 'produto.inserido', item, source);
+            await publishMessage(empresa, isUpdate ? 'produto.atualizado' : 'produto.inserido', item, source);
             return reply.status(201).send(item);
         } catch (e) {
             console.error('Error inserting product:', e);
@@ -472,6 +505,87 @@ const productsRoute: FastifyPluginAsyncZod = async (server) => {
             return reply.status(400).send({ success: false, message: 'Error updating product' });
         }
     });
+
+    server.post('/bulk/produtos', {
+          schema: {
+            description:"cadastra/atualiza produtos em lote, caso informado o codigo e o registro correspondente já existir, o mesmo será atualizado.\n Maximo de produtos permitidos por lote : 1000.",
+            tags: ['produtos'],
+            headers: z.object({
+                token: z.string(),
+                source: z.string().optional()
+            }),
+            body:productBulkInsert
+            ,
+            response: {
+                 202: z.object({
+                             success: z.boolean(), 
+                            message: z.string(),
+                            lote_id: z.string()
+                        }),
+                400: z.object({
+                    success: z.boolean(),
+                    message: z.string()
+                }),
+                 500: z.object({
+                                   success: z.boolean(),
+                                   message: z.string()
+                               })
+            }
+        }
+    }, async (request, reply) => {
+ 
+        const decodedToken = DecodedToken(String(request.headers.token));
+
+        if (!decodedToken.payload?.cnpj) {
+            return reply.status(400).send({ success: false, message: 'Company identifier not provided' });
+        }
+ 
+        const empresa = decodedToken.payload.cnpj.replace(/\D/g, '');
+        const dbName = `\`${empresa}\``;
+        const source = request.headers.source as string || 'api_internal';
+
+     
+        const dados = request.body;
+
+        if (!Array.isArray(dados) || dados.length === 0) {
+            return reply.status(400).send({ success: false, message: 'Array of items is required' });
+         }
+            if ( dados.length > 1000) {
+            return reply.status(400).send({ success: false, message: 'record limit per batch reached' });
+        }
+            try {
+                const loteId = crypto.randomUUID(); 
+                             const QUEUE_CHUNK_SIZE = 5000;  
+            
+                            for (let i = 0; i < dados.length; i += QUEUE_CHUNK_SIZE) {
+                                const chunk = dados.slice(i, i + QUEUE_CHUNK_SIZE);
+                                
+                                const payloadFila = {
+                                    loteId,
+                                    dbName,
+                                    empresa,
+                                    source,
+                                    itens: chunk
+                                };
+            
+                               await publishInternalMessage(empresa, `produtos.processar.${empresa}`, payloadFila);
+            
+                            }
+            
+                            return reply.status(202).send({ 
+                                success: true, 
+                                message: 'O processamento do lote foi iniciado em segundo plano.',
+                                lote_id: loteId
+                            });
+        } catch (e) {
+                 console.error('Error triggering background job:', e);
+                return reply.status(500).send({ success: false, message: 'Internal server error' });
+        }
+       
+
+        
+    });
+
 };
 
 export { productsRoute };

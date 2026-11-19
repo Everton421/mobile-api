@@ -188,7 +188,6 @@ export class SelectProductSector {
         if(limit){
             sql+=` limit ${limit}  `
         }
-        console.log(sql)
         const [rows] = await conn.query(sql, values) as [any[], any];
 
         const productMap = new Map<number, GroupedProductSectorType>();

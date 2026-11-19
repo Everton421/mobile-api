@@ -445,6 +445,7 @@ export class CompanyStructure {
 
         `CREATE TABLE IF NOT EXISTS ??.lotes_series (
             codigo int(10) unsigned NOT NULL AUTO_INCREMENT,
+            id varchar(255) DEFAULT NULL,
             produto int(10) unsigned NOT NULL DEFAULT 0,
             lote varchar(50) DEFAULT NULL,
             serie varchar(50) DEFAULT NULL,
@@ -460,11 +461,13 @@ export class CompanyStructure {
             produto int(10) unsigned NOT NULL DEFAULT 0,
             lote_serie int(10) unsigned NOT NULL DEFAULT 0,
             estoque float(15,6) NOT NULL DEFAULT 0.000000,
+            data_recadastro datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             PRIMARY KEY (setor, lote_serie),
             KEY lote_serie (lote_serie),
             KEY produto (produto, lote_serie),
             KEY setor (setor, produto, lote_serie),
-            KEY idx_produto_setor (produto, setor)
+            KEY idx_produto_setor (produto, setor),
+            KEY idx_data_recadastro (data_recadastro)
         ) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC;`
     ];
 

@@ -8,6 +8,10 @@ export class UpdateLotesSeries {
         const fields: string[] = [];
         const values: any[] = [];
 
+        if (data.id !== undefined) {
+            fields.push("id = ?");
+            values.push(data.id);
+        }
         if (data.produto !== undefined) {
             fields.push("produto = ?");
             values.push(data.produto);
