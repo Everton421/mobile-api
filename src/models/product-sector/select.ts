@@ -34,6 +34,39 @@ export class SelectProductSector {
         return result as ProductSectorType[];
     }
 
+        async findChangedAfter(
+            dbName: string,
+            dataRecadastro?: string,
+            limit: number = 1000
+        ): Promise<ProductSectorType[]> {
+            const conditions: string[] = [];
+            const values: (number | string)[] = [];
+    
+            if (dataRecadastro) {
+                conditions.push('lss.data_recadastro > ?');
+                values.push(dataRecadastro);
+            }
+    
+            const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+            const sql = `SELECT 
+                        ps.*,
+                        s.id as id_setor,
+                        p.id as id_produto,
+                        COALESCE(DATE_FORMAT(ps.data_recadastro, '%Y-%m-%d %H:%i:%s'), '0000-00-00 00:00:00') AS data_recadastro
+                    FROM ${dbName}.produto_setor ps
+                    JOIN ${dbName}.setores s ON s.codigo = ps.setor  
+                    JOIN ${dbName}.produtos p ON p.codigo = ps.produto
+                         ${whereClause}
+                         ORDER BY ps.data_recadastro ASC, ps.setor ASC, ps.produto ASC
+                         LIMIT ? ` ;
+            values.push(limit);
+            const [result] = await conn.query(sql, values);
+            return result as ProductSectorType[];
+        }
+    
+
+
     async findByProduct(dbName: string, productCode: number ): Promise<ProductSectorType[]> {
         let sql = ` SELECT 
             ps.*,
@@ -169,7 +202,6 @@ export class SelectProductSector {
         conditions.push(' p.sku = ? ')
         values.push(sku);
     } 
-   
    
    if (search) {
             const terms = search.trim().split(/\s+/).filter(t => t.length > 0);

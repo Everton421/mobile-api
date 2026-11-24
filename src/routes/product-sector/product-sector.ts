@@ -47,13 +47,14 @@ const productSectorOfflineBodySchema = z.array(z.object({
 const productSectorRoute: FastifyPluginAsyncZod = async (server) => {
     server.get('/bulk/produtos-setor', {
         schema: {
+            description:"Consulta registros alterados após a data informada.",
             tags: ['produtos-setor'],
             headers: z.object({
                 token: z.string()
             }),
             querystring: z.object({
-                data_recadastro: z.string().optional(),
-                limit: z.coerce.number().optional()
+                  data_recadastro: z.string().regex(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/).optional().describe("Consulta registros alterados após a data informada."),
+                  limit: z.coerce.number().int().min(1).max(5000).default(1000)
             }),
             response: {
                 200: z.array(productSectorResponseSchema),

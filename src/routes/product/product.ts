@@ -506,7 +506,7 @@ const productsRoute: FastifyPluginAsyncZod = async (server) => {
         }
     });
 
-    server.post('/bulk/produtos', {
+    server.post('/async/bulk/produtos', {
           schema: {
             description:"cadastra/atualiza produtos em lote, caso informado o codigo e o registro correspondente já existir, o mesmo será atualizado.\n Maximo de produtos permitidos por lote : 1000.",
             tags: ['produtos'],

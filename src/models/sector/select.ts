@@ -93,6 +93,17 @@ export class SelectSector {
         return result as SectorType[];
     }
 
+    async  findByIds(dbName: string, ids: string[]): Promise<SectorType[]> {
+        const sql = `SELECT *,
+            COALESCE(DATE_FORMAT(data_cadastro, '%Y-%m-%d'), '0000-00-00') AS data_cadastro,
+            COALESCE(DATE_FORMAT(data_recadastro, '%Y-%m-%d %H:%i:%s'), '0000-00-00 00:00:00') AS data_recadastro
+        FROM ${dbName}.setores
+        WHERE  id in ( ? )`;
+
+        const [result] = await conn.query(sql, [ids]);
+        return result as SectorType[];
+    }
+
     async findLastInsertedCode(dbName: string): Promise<{ codigo: number }> {
         const sql = `SELECT MAX(codigo) as codigo FROM ${dbName}.setores`;
         const [result] = await conn.query(sql);

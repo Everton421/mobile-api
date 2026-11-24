@@ -79,6 +79,41 @@ const lotesSeriesRoute: FastifyPluginAsyncZod = async (server) => {
             return reply.status(400).send({ success: false, message: 'Error searching lotes-series' });
         }
     });
+ server.get('/bulk/lotes-series', {
+        schema: {
+            description:"Consulta registros alterados após a data informada.",
+            tags: ['lotes-series'],
+            headers: z.object({
+                token: z.string()
+            }),
+              querystring: z.object({
+                           data_recadastro: z.string().regex(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/).optional().describe("Consulta registros alterados após a data informada."),
+                           limit: z.coerce.number().int().min(1).max(5000).default(1000)
+                       }),
+            response: {
+                200: z.array(lotesSeriesResponseSchema),
+                400: z.object({
+                    success: z.boolean(),
+                    message: z.string()
+                })
+            }
+        }
+    }, async (request, reply) => {
+        const select = new SelectLotesSeries();
+        const decodedToken = DecodedToken(String(request.headers.token));
+        const empresa = decodedToken.payload?.cnpj.replace(/\D/g, '');
+        const dbName = `\`${empresa}\``;
+        const { limit, data_recadastro } = request.query;
+
+        try {
+            
+             let  result = await select.findChangedAfter(dbName, data_recadastro, limit );
+            return reply.status(200).send(result); 
+        } catch (e) {
+            console.error('Error searching lotes-series:', e);
+            return reply.status(400).send({ success: false, message: 'Error searching lotes-series' });
+        }
+    });
 
     server.post('/lotes-series', {
         schema: {
@@ -201,7 +236,7 @@ const lotesSeriesRoute: FastifyPluginAsyncZod = async (server) => {
     });
     server.post('/async/bulk/lotes-series', {
         schema: {
-            description: "Cadastra/atualiza lote serie em lote. Se informado o código e o registro já existir, o mesmo será atualizado com os novos dados. Limite maximo por lote: 5000 ",
+            description: "Processamento asyncrono, Cadastra/atualiza lote serie em lote. Se informado o código e o registro já existir, o mesmo será atualizado com os novos dados. Limite maximo por lote: 5000 ",
             tags: ['lotes-series'],
             headers: z.object({
                 token: z.string(),

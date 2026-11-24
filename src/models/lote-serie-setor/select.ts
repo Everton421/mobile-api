@@ -127,7 +127,7 @@ export class SelectLoteSerieSetor {
                      JOIN ${dbName}.lotes_series ls on ls.codigo = lss.lote_serie
                      ${whereClause}
                      ORDER BY lss.data_recadastro ASC, lss.setor ASC, lss.lote_serie ASC
-                     LIMIT ?`;
+                     LIMIT ? ` ;
         values.push(limit);
         const [result] = await conn.query(sql, values);
         return result as resultLoteSerieChanged[];

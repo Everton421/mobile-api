@@ -2,6 +2,31 @@ import { conn } from "../../database/databaseConfig.ts";
 import { type LotesSeriesType } from "./types/lotes-series-type.ts";
 
 export class SelectLotesSeries {
+
+    async findChangedAfter(dbName: string, udpatedAt?:string, limit:number = 1000 ): Promise<LotesSeriesType[]>{
+
+          const conditions: string[] = [];
+        const values: (number | string)[] = [];
+
+        if (udpatedAt) {
+            conditions.push('data_recadastro > ?');
+            values.push(udpatedAt);
+        }
+        const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+        const sql = `SELECT *,
+            DATE_FORMAT(data_cadastro, '%Y-%m-%d') AS data_cadastro,
+            DATE_FORMAT(data_recadastro, '%Y-%m-%d %H:%i:%s') AS data_recadastro
+         FROM ${dbName}.lotes_series
+              ${whereClause}
+             ORDER BY  data_recadastro ASC,  codigo ASC
+              LIMIT ?
+         `;
+        values.push(limit);
+        const [result] = await conn.query(sql, values );
+        return result as LotesSeriesType[];
+    }
+
     async findAll(dbName: string): Promise<LotesSeriesType[]> {
         const sql = `SELECT *,
             DATE_FORMAT(data_cadastro, '%Y-%m-%d') AS data_cadastro,

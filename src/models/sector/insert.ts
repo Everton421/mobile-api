@@ -3,6 +3,16 @@ import { conn } from "../../database/databaseConfig.ts";
 import { DateService } from "../../utils/dateService.ts";
 import { type SectorType } from "./types/sector-type.ts";
 
+
+type inputBulkInsert = {
+    codigo?: number | undefined;
+    id: string;
+    data_cadastro?: string;
+    data_recadastro?: string;
+    descricao: string;
+    ativo?: string ;
+}
+
 export class InsertSector {
     async insert(dbName: string, data: SectorType): Promise<{ insertId: number }> {
          
@@ -44,7 +54,7 @@ export class InsertSector {
         return result as ResultSetHeader;
     }
 
-    async bulkInsertOrUpdate(dbName: string, data: SectorType[]): Promise<{ affectedRows: number }> {
+    async bulkInsertOrUpdate(dbName: string, data: inputBulkInsert[]): Promise<{ affectedRows: number }> {
         const dateService = new DateService();
         const params: string[] = [];
         const values: (string | number | null)[] = [];
