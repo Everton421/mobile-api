@@ -236,7 +236,7 @@ const lotesSeriesRoute: FastifyPluginAsyncZod = async (server) => {
     });
     server.post('/async/bulk/lotes-series', {
         schema: {
-            description: "Processamento asyncrono, Cadastra/atualiza lote serie em lote. Se informado o código e o registro já existir, o mesmo será atualizado com os novos dados. Limite maximo por lote: 5000 ",
+            description: "Processamento assíncrono, Cadastra/atualiza lote serie em lote. Se informado o código e o registro já existir, o mesmo será atualizado com os novos dados. Limite maximo por lote: 5000 ",
             tags: ['lotes-series'],
             headers: z.object({
                 token: z.string(),

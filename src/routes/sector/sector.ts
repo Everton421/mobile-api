@@ -282,7 +282,7 @@ const sectorsRoute: FastifyPluginAsyncZod = async (server) => {
 
     server.post('/async/bulk/setores', {
         schema: {
-            description: "Processamento asyncrono, cadastra/atualiza setores em lote. Se informado o código e o registro já existir, o mesmo será atualizado com os novos dados. Limite maximo por lote: 5000",
+            description: "Processamento assíncrono, cadastra/atualiza setores em lote. Se informado o código e o registro já existir, o mesmo será atualizado com os novos dados. Limite maximo por lote: 5000",
             tags: ['setores'],
             headers: z.object({
                 token: z.string(),

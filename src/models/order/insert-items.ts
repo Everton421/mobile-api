@@ -33,6 +33,10 @@ export class InsertOrderItems {
                     produto = ?,
                     lote_serie = ?,
                     quantidade =?
+                    ON DUPLICATE KEY UPDATE 
+                    produto = VALUES(produto),
+                    lote_serie = VALUES(lote_serie),
+                    quantidade =VALUES(quantidade)
                  `  
                     const valuesSeries = [orderCode, codigo, s.lote_serie, s.quantidade]
                  await conn.query(sqlInsertSerie,valuesSeries )
@@ -54,7 +58,19 @@ export class InsertOrderItems {
                 total,
                 quantidade_separada,
                 quantidade_faturada
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE 
+            codigo=VALUES(codigo),
+            sequencia=VALUES(sequencia),
+            desconto=VALUES(desconto),
+            quantidade=VALUES(quantidade),
+            preco=VALUES(preco),
+            frete=VALUES(frete),
+            total=VALUES(total),
+            quantidade_separada=VALUES(quantidade_separada),
+            quantidade_faturada=VALUES(quantidade_faturada)
+
+            `;
 
             const values = [orderCode, codigo, sequencia, desconto, quantidade, preco, freight, total, quantidade_separada, quantidade_faturada];
             

@@ -264,9 +264,9 @@ const productSectorRoute: FastifyPluginAsyncZod = async (server) => {
         }
     });
 
-       server.put('/bulk/produtos-setor', {
+       server.post('/async/bulk/produtos-setor', {
         schema: {
-            description:"cadastra/atualiza produtos no setor em lote.\n Maximo de registros permitidos por lote : 5000.",
+            description:"Processamento assíncrono - cadastra/atualiza produtos no setor em lote.\n Maximo de registros permitidos por lote : 5000.",
 
             tags: ['produtos-setor'],
             headers: z.object({
@@ -347,7 +347,57 @@ const productSectorRoute: FastifyPluginAsyncZod = async (server) => {
             return reply.status(400).send({ success: false, message: 'Error updating product sectors offline' });
         }
     });
+      server.post('/bulk/produtos-setor', {
+        schema: {
+            description:"Processamento assíncrono - cadastra/atualiza produtos no setor em lote.\n Maximo de registros permitidos por lote : 1000.",
 
+            tags: ['produtos-setor'],
+            headers: z.object({
+                token: z.string(),
+                source: z.string().optional()
+            }),
+            body: productSectorOfflineBodySchema,
+            response: {
+                 200: productSectorOfflineBodySchema,
+                400: z.object({
+                    success: z.boolean(),
+                    message: z.string()
+                })
+            }
+        }
+    }, async (request, reply) => {
+        const dateService = new DateService();
+        const insert = new InsertProductSector();
+        const decodedToken = DecodedToken(String(request.headers.token));
+
+        if (!decodedToken.payload?.cnpj) {
+            return reply.status(400).send({ success: false, message: 'Company identifier not provided' });
+        }
+
+        const empresa = decodedToken.payload.cnpj.replace(/\D/g, '');
+        const dbName = `\`${empresa}\``;
+        const source = request.headers.source as string || 'api_internal';
+        const dados = request.body;
+
+        if (!Array.isArray(dados) || dados.length === 0) {
+            return reply.status(400).send({ success: false, message: 'Array of items is required' });
+        }
+
+          if ( dados.length > 1000) {
+            return reply.status(400).send({ success: false, message: 'record limit per batch reached' });
+        }
+
+        try {
+
+                await insert.bulkInsertOrUpdate(dbName, dados as any )
+
+                   return reply.status(200).send( dados );
+
+        } catch (e) {
+            console.error('Error updating product sectors offline:', e);
+            return reply.status(400).send({ success: false, message: 'Error updating product sectors offline' });
+        }
+    });
     // server.put('/bulk/produtos-setor', {
     //     schema: {
     //         tags: ['produtos-setor'],

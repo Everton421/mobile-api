@@ -160,9 +160,61 @@ const loteSerieSetorRoute: FastifyPluginAsyncZod = async (server) => {
         }
     });
 
-       server.put('/bulk/lote-serie-setor', {
+       server.post('/bulk/lote-serie-setor', {
         schema: {
-            description: "Cadastra/atualiza lote-serie-setor em lote. Maximo de registros permitidos por lote : 5000",
+            description: "Cadastra/atualiza lote-serie-setor em lote. Maximo de registros permitidos por lote : 1000",
+
+            tags: ['lote-serie-setor'],
+            headers: z.object({
+                token: z.string(),
+                source: z.string().optional()
+            }),
+            body: loteSerieSetorBulkBodySchema,
+            response: {
+                200: loteSerieSetorBulkBodySchema,
+                400: z.object({
+                    success: z.boolean(),
+                    message: z.string()
+                }),
+                 500: z.object({
+                    success: z.boolean(),
+                    message: z.string()
+                })
+            }
+        }
+    }, async (request, reply) => {
+        const decodedToken = DecodedToken(String(request.headers.token));
+        if (!decodedToken.payload?.cnpj) {
+            return reply.status(400).send({ success: false, message: 'Company identifier not provided' });
+        }
+        const empresa = decodedToken.payload.cnpj.replace(/\D/g, '');
+        const dbName = `\`${empresa}\``;
+        const source = request.headers.source as string || 'api_internal';
+        const dados = request.body;
+             const insertLoteSerieSetor = new InsertLoteSerieSetor();
+
+        if (!Array.isArray(dados) || dados.length === 0) {
+            return reply.status(400).send({ success: false, message: 'Array of items is required' });
+        }
+
+          if ( dados.length > 1000) {
+            return reply.status(400).send({ success: false, message: 'record limit per batch reached' });
+        }
+        try {
+                
+                await insertLoteSerieSetor.insertOrUpdateBulk(dbName, dados as any);
+
+                reply.status(200).send(dados as any)
+                 
+            } catch (e) {
+                console.error('Error triggering background job:', e);
+                return reply.status(500).send({ success: false, message: 'Internal server error' });
+            }
+    });
+
+       server.post('/async/bulk/lote-serie-setor', {
+        schema: {
+            description: "Processamento assíncrono - Cadastra/atualiza lote-serie-setor em lote. Maximo de registros permitidos por lote : 5000",
 
             tags: ['lote-serie-setor'],
             headers: z.object({

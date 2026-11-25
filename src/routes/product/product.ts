@@ -60,7 +60,7 @@ const productResponseSchema = z.object({
 
    const productBulkInsert =    z.array( 
              z.object({
-                codigo: z.number().optional(),
+                codigo: z.number(),
                 id: z.coerce.string(),
                 estoque: z.coerce.number().default(0),
                 preco: z.coerce.string().default('0'),
@@ -505,10 +505,75 @@ const productsRoute: FastifyPluginAsyncZod = async (server) => {
             return reply.status(400).send({ success: false, message: 'Error updating product' });
         }
     });
-
-    server.post('/async/bulk/produtos', {
+    server.post('/bulk/produtos', {
           schema: {
             description:"cadastra/atualiza produtos em lote, caso informado o codigo e o registro correspondente já existir, o mesmo será atualizado.\n Maximo de produtos permitidos por lote : 1000.",
+            tags: ['produtos'],
+            headers: z.object({
+                token: z.string(),
+                source: z.string().optional()
+            }),
+            body:productBulkInsert
+            ,
+            response: {
+                200: productBulkInsert,
+                400: z.object({
+                    success: z.boolean(),
+                    message: z.string()
+                }),
+                 500: z.object({
+                                   success: z.boolean(),
+                                   message: z.string()
+                               })
+            }
+        }
+    }, async (request, reply) => {
+ 
+        const decodedToken = DecodedToken(String(request.headers.token));
+
+        if (!decodedToken.payload?.cnpj) {
+            return reply.status(400).send({ success: false, message: 'Company identifier not provided' });
+        }
+ 
+        const empresa = decodedToken.payload.cnpj.replace(/\D/g, '');
+        const dbName = `\`${empresa}\``;
+        const source = request.headers.source as string || 'api_internal';
+        const insert = new InsertProduct();
+                const insertPhoto = new InsertPhoto();
+
+     
+        const dados = request.body;
+
+        if (!Array.isArray(dados) || dados.length === 0) {
+            return reply.status(400).send({ success: false, message: 'Array of items is required' });
+         }
+            if ( dados.length > 1000) {
+            return reply.status(400).send({ success: false, message: 'record limit per batch reached' });
+        }
+             let photos:any[] = [];
+
+            try {
+                await insert.bulkInsertOrUpdate(dbName, dados as any);
+                for(const product of dados ){
+                       product.fotos.map((i)=> { photos.push( { ...i, produto:product.codigo } ) })
+                }
+                 if(photos.length > 0 ){ 
+                     await insertPhoto.bulkInsertOrUpdate(dbName, photos);
+                }
+
+                reply.status(200).send(dados);
+
+        } catch (e) {
+                 console.error('Error triggering background job:', e);
+                return reply.status(500).send({ success: false, message: 'Internal server error' });
+        }
+       
+
+        
+    });
+    server.post('/async/bulk/produtos', {
+          schema: {
+            description:"Processamento assíncrono - cadastra/atualiza produtos em lote, caso informado o codigo e o registro correspondente já existir, o mesmo será atualizado.\n Maximo de produtos permitidos por lote : 1000.",
             tags: ['produtos'],
             headers: z.object({
                 token: z.string(),

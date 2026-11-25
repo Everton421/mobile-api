@@ -181,7 +181,8 @@ export class CompanyStructure {
                 frete decimal(10,2) DEFAULT 0.00, 
                 total decimal(10,2) DEFAULT 0.00, 
                 quantidade_separada decimal(10,2) DEFAULT 0.00,
-                quantidade_faturada decimal(10,2) DEFAULT 0.00
+                quantidade_faturada decimal(10,2) DEFAULT 0.00,
+                 PRIMARY KEY ( codigo , pedido )
             );`,
       `CREATE TABLE IF NOT EXISTS ??.servicos_pedido (
                 pedido bigint(20) unsigned NOT NULL DEFAULT 0,
